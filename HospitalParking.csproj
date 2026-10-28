@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProductVersion>
+    </ProductVersion>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{A85E6E1D-7D8C-4C79-881E-473539129541}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>HospitalParking</RootNamespace>
+    <AssemblyName>HospitalParking</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <UseIISExpress>true</UseIISExpress>
+    <IISExpressSSLPort />
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.ComponentModel.DataAnnotations" />
+    <Reference Include="System.Configuration" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Web" />
+    <Reference Include="System.Web.Services" />
+    <Reference Include="System.Xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="Site.Master" />
+    <Content Include="Default.aspx" />
+    <Content Include="Admin_Dashboard.aspx" />
+    <Content Include="Admin_Management.aspx" />
+    <Content Include="Permit_Management.aspx" />
+    <Content Include="Zone_Management.aspx" />
+    <Content Include="Dept_Management.aspx" />
+    <Content Include="Employee_Portal.aspx" />
+    <Content Include="Mobile_Check.aspx" />
+    <Content Include="Login.aspx" />
+    <Content Include="Web.config" />
+    <Content Include="Content\css\site.css" />
+    <Content Include="Content\xlsx.full.min.js" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Site.Master.cs">
+      <DependentUpon>Site.Master</DependentUpon>
+      <SubType>ASPXCodeBehind</SubType>
+    </Compile>
+    <Compile Include="Default.aspx.cs">
+      <DependentUpon>Default.aspx</DependentUpon>
+      <SubType>ASPXCodeBehind</SubType>
+    </Compile>
+    <Compile Include="Login.aspx.cs">
+      <DependentUpon>Login.aspx</DependentUpon>
+      <SubType>ASPXCodeBehind</SubType>
+    </Compile>
+    <Compile Include="Admin_Dashboard.aspx.cs">
+      <DependentUpon>Admin_Dashboard.aspx</DependentUpon>
+      <SubType>ASPXCodeBehind</SubType>
+    </Compile>
+    <Compile Include="Admin_Management.aspx.cs">
+      <DependentUpon>Admin_Management.aspx</DependentUpon>
+      <SubType>ASPXCodeBehind</SubType>
+    </Compile>
+    <Compile Include="Admin_Management.aspx.designer.cs">
+      <DependentUpon>Admin_Management.aspx</DependentUpon>
+    </Compile>
+    <Compile Include="Permit_Management.aspx.cs">
+      <DependentUpon>Permit_Management.aspx</DependentUpon>
+      <SubType>ASPXCodeBehind</SubType>
+    </Compile>
+    <Compile Include="Zone_Management.aspx.cs">
+      <DependentUpon>Zone_Management.aspx</DependentUpon>
+      <SubType>ASPXCodeBehind</SubType>
+    </Compile>
+    <Compile Include="Dept_Management.aspx.cs">
+      <DependentUpon>Dept_Management.aspx</DependentUpon>
+      <SubType>ASPXCodeBehind</SubType>
+    </Compile>
+    <Compile Include="Employee_Portal.aspx.cs">
+      <DependentUpon>Employee_Portal.aspx</DependentUpon>
+      <SubType>ASPXCodeBehind</SubType>
+    </Compile>
+    <Compile Include="Mobile_Check.aspx.cs">
+      <DependentUpon>Mobile_Check.aspx</DependentUpon>
+      <SubType>ASPXCodeBehind</SubType>
+    </Compile>
+    <Compile Include="Common\DbHelper.cs" />
+    <Compile Include="Models\Entities.cs" />
+    <Compile Include="DTOs\DataTransferObjects.cs" />
+    <Compile Include="Services\ZoneService.cs" />
+    <Compile Include="Services\DepartmentService.cs" />
+    <Compile Include="Services\PermitService.cs" />
+    <Compile Include="Services\ApplicationWorkflowService.cs" />
+    <Compile Include="Services\InspectionService.cs" />
+    <Compile Include="Services\DashboardService.cs" />
+    <Compile Include="Services\AuthService.cs" />
+    <Compile Include="Services\AdminUserService.cs" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

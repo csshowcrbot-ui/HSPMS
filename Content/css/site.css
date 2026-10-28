@@ -1,0 +1,438 @@
+/* ==========================================================================
+   智慧停車場車輛管理系統 (HSPMS) - 核心設計規範樣式表
+   遵照 ui_ux.md 規範設計 (醫療專業、深藍主調、高對比、自適應響應式)
+   ========================================================================== */
+
+:root {
+    --hsp-primary: #1A56DB;
+    --hsp-primary-hover: #1346B0;
+    --hsp-primary-light: #EBF5FF;
+    --hsp-secondary: #4B5563;
+    --hsp-success: #0E9F6E;
+    --hsp-success-bg: #DEF7EC;
+    --hsp-warning: #E3A008;
+    --hsp-warning-bg: #FEF08A;
+    --hsp-danger: #F05252;
+    --hsp-danger-bg: #FDE8E8;
+    --hsp-bg: #F9FAFB;
+    --hsp-surface: #FFFFFF;
+    --hsp-border: #E5E7EB;
+    --hsp-text-main: #111827;
+    --hsp-text-muted: #6B7280;
+    --hsp-radius: 12px;
+    --hsp-shadow-sm: 0 1px 3px rgba(0,0,0,0.05);
+    --hsp-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    --hsp-shadow-lg: 0 10px 25px rgba(0,0,0,0.1);
+}
+
+body {
+    background-color: var(--hsp-bg);
+    color: var(--hsp-text-main);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "PingFang TC", "Microsoft JhengHei", sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* 頂部醫療專業導覽列 */
+.navbar-hospital {
+    background-color: var(--hsp-primary) !important;
+    box-shadow: 0 2px 10px rgba(26, 86, 219, 0.2);
+    padding: 0.75rem 1.5rem;
+}
+
+.navbar-hospital .navbar-brand {
+    font-weight: 700;
+    font-size: 1.25rem;
+    letter-spacing: 0.5px;
+    color: #FFFFFF !important;
+}
+
+.navbar-hospital .nav-link {
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.88) !important;
+    padding: 0.5rem 1rem !important;
+    border-radius: 8px;
+    transition: all 0.2s ease-in-out;
+}
+
+.navbar-hospital .nav-link:hover {
+    color: #FFFFFF !important;
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+.navbar-hospital .nav-link.active {
+    color: #FFFFFF !important;
+    background-color: rgba(255, 255, 255, 0.22);
+    font-weight: 600;
+}
+
+.nav-link-mobile-alert {
+    background: rgba(227, 160, 8, 0.2);
+    border: 1px solid rgba(227, 160, 8, 0.4);
+    color: #FEF08A !important;
+}
+
+.nav-link-mobile-alert:hover {
+    background: rgba(227, 160, 8, 0.35) !important;
+}
+
+/* 卡片與容器樣式 */
+.hsp-card {
+    background: var(--hsp-surface);
+    border: 1px solid var(--hsp-border);
+    border-radius: var(--hsp-radius);
+    box-shadow: var(--hsp-shadow-sm);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hsp-card-hover:hover {
+    box-shadow: var(--hsp-shadow);
+    transform: translateY(-2px);
+}
+
+.hsp-card-header {
+    background: transparent;
+    border-bottom: 1px solid var(--hsp-border);
+    padding: 1.1rem 1.25rem;
+    font-weight: 600;
+    font-size: 1.05rem;
+}
+
+/* KPI 指標卡片 */
+.kpi-card {
+    border-radius: var(--hsp-radius);
+    padding: 1.35rem 1.25rem;
+    position: relative;
+    overflow: hidden;
+    box-shadow: var(--hsp-shadow-sm);
+    transition: all 0.25s ease;
+    border: 1px solid transparent;
+}
+
+.kpi-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--hsp-shadow);
+}
+
+.kpi-card .kpi-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.6rem;
+}
+
+.kpi-card .kpi-value {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1.2;
+    margin-top: 0.5rem;
+}
+
+.kpi-card .kpi-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--hsp-text-muted);
+}
+
+.kpi-blue {
+    background: #FFFFFF;
+    border-color: #BFDBFE;
+}
+.kpi-blue .kpi-icon {
+    background: var(--hsp-primary-light);
+    color: var(--hsp-primary);
+}
+.kpi-blue .kpi-value {
+    color: var(--hsp-primary);
+}
+
+.kpi-amber {
+    background: #FFFFFF;
+    border-color: #FDE68A;
+}
+.kpi-amber .kpi-icon {
+    background: var(--hsp-warning-bg);
+    color: #B45309;
+}
+.kpi-amber .kpi-value {
+    color: #B45309;
+}
+
+.kpi-rose {
+    background: #FFFFFF;
+    border-color: #FECDD3;
+}
+.kpi-rose .kpi-icon {
+    background: var(--hsp-danger-bg);
+    color: var(--hsp-danger);
+}
+.kpi-rose .kpi-value {
+    color: var(--hsp-danger);
+}
+
+.kpi-teal {
+    background: #FFFFFF;
+    border-color: #A7F3D0;
+}
+.kpi-teal .kpi-icon {
+    background: var(--hsp-success-bg);
+    color: var(--hsp-success);
+}
+.kpi-teal .kpi-value {
+    color: var(--hsp-success);
+}
+
+/* 資料表格增強 */
+.hsp-table thead th {
+    background-color: #F3F4F6;
+    color: #374151;
+    font-weight: 600;
+    font-size: 0.875rem;
+    border-bottom: 2px solid var(--hsp-border);
+    padding: 0.85rem 0.75rem;
+    white-space: nowrap;
+}
+
+.hsp-table tbody td {
+    padding: 0.85rem 0.75rem;
+    vertical-align: middle;
+    font-size: 0.9rem;
+    border-bottom: 1px solid #F3F4F6;
+}
+
+.hsp-table tbody tr:hover {
+    background-color: rgba(235, 245, 255, 0.4);
+}
+
+/* 車牌風格徽章 */
+.license-plate-badge {
+    font-family: "SF Pro Display", -apple-system, "Segoe UI", Roboto, monospace;
+    font-weight: 700;
+    letter-spacing: 1px;
+    background: #1E293B;
+    color: #F8FAFC;
+    padding: 0.25rem 0.6rem;
+    border-radius: 6px;
+    border: 1px solid #334155;
+    display: inline-block;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+}
+
+/* 狀態徽章 */
+.badge-status-valid {
+    background-color: var(--hsp-success-bg);
+    color: #065F46;
+    border: 1px solid #A7F3D0;
+    font-weight: 600;
+}
+
+.badge-status-warning {
+    background-color: var(--hsp-warning-bg);
+    color: #92400E;
+    border: 1px solid #FDE68A;
+    font-weight: 600;
+}
+
+.badge-status-danger {
+    background-color: var(--hsp-danger-bg);
+    color: #991B1B;
+    border: 1px solid #FECDD3;
+    font-weight: 600;
+}
+
+.badge-status-dark {
+    background-color: #F3F4F6;
+    color: #1F2937;
+    border: 1px solid #D1D5DB;
+    font-weight: 600;
+}
+
+/* 行動巡檢專屬樣式 (48px+ 觸控熱區、高對比) */
+.mobile-check-container {
+    max-width: 580px;
+    margin: 0 auto;
+}
+
+.btn-mobile-camera {
+    height: 56px;
+    font-size: 1.15rem;
+    font-weight: 600;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    box-shadow: 0 4px 14px rgba(26, 86, 219, 0.35);
+    transition: all 0.2s ease;
+}
+
+.btn-mobile-camera:active {
+    transform: scale(0.98);
+}
+
+.mobile-plate-input {
+    height: 54px;
+    font-size: 1.35rem;
+    letter-spacing: 2px;
+    font-weight: 700;
+    border-radius: 12px;
+    text-transform: uppercase;
+}
+
+/* 查驗結果卡片 (高對比 WCAG 2.1 AA) */
+.verify-card {
+    border-radius: 16px;
+    border-width: 2px;
+    overflow: hidden;
+    box-shadow: var(--hsp-shadow);
+    animation: fadeInScale 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fadeInScale {
+    from {
+        opacity: 0;
+        transform: scale(0.96);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.verify-card-valid {
+    border-color: var(--hsp-success);
+    background-color: #F2FBF7;
+}
+.verify-card-valid .verify-header {
+    background-color: var(--hsp-success);
+    color: #FFFFFF;
+}
+
+.verify-card-wrong {
+    border-color: var(--hsp-warning);
+    background-color: #FFFDF0;
+}
+.verify-card-wrong .verify-header {
+    background-color: var(--hsp-warning);
+    color: #FFFFFF;
+}
+
+.verify-card-expired {
+    border-color: var(--hsp-danger);
+    background-color: #FFF5F5;
+}
+.verify-card-expired .verify-header {
+    background-color: var(--hsp-danger);
+    color: #FFFFFF;
+}
+
+.verify-card-unknown {
+    border-color: #4B5563;
+    background-color: #F9FAFB;
+}
+.verify-card-unknown .verify-header {
+    background-color: #374151;
+    color: #FFFFFF;
+}
+
+/* 數位車輛通行證虛擬卡 */
+.permit-virtual-card {
+    background: linear-gradient(135deg, #1E3A8A 0%, #1A56DB 100%);
+    color: white;
+    border-radius: 16px;
+    padding: 1.5rem;
+    box-shadow: 0 10px 25px rgba(26, 86, 219, 0.3);
+    position: relative;
+    overflow: hidden;
+}
+
+.permit-virtual-card::after {
+    content: "HOSPITAL PARKING";
+    position: absolute;
+    right: -20px;
+    bottom: -15px;
+    font-size: 3.5rem;
+    font-weight: 900;
+    opacity: 0.05;
+    pointer-events: none;
+    letter-spacing: 2px;
+}
+
+/* 時間軸樣式 */
+.timeline {
+    position: relative;
+    padding-left: 2rem;
+    margin: 1.5rem 0;
+}
+
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 11px;
+    top: 5px;
+    bottom: 5px;
+    width: 2px;
+    background: #E5E7EB;
+}
+
+.timeline-step {
+    position: relative;
+    margin-bottom: 1.75rem;
+}
+
+.timeline-step:last-child {
+    margin-bottom: 0;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: -2rem;
+    top: 0;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #FFFFFF;
+    border: 3px solid #D1D5DB;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    color: white;
+}
+
+.timeline-step.completed .timeline-marker {
+    border-color: var(--hsp-success);
+    background: var(--hsp-success);
+}
+
+.timeline-step.active .timeline-marker {
+    border-color: var(--hsp-primary);
+    background: var(--hsp-primary);
+    box-shadow: 0 0 0 4px rgba(26, 86, 219, 0.2);
+}
+
+.timeline-step.rejected .timeline-marker {
+    border-color: var(--hsp-danger);
+    background: var(--hsp-danger);
+}
+
+/* 必填紅星標記 */
+.required::after {
+    content: " *";
+    color: var(--hsp-danger);
+    font-weight: bold;
+}
+
+/* 頁面載入微漸變效果 */
+.animate-fade-in {
+    animation: fadeIn 0.25s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}

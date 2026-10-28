@@ -1,0 +1,26 @@
+## Visual Studio / .NET
+[Bb]in/
+[Oo]bj/
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+packages/
+
+## Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+build/
+bld/
+
+## Uploaded files & temporary caches
+Uploads/*
+!Uploads/.gitkeep
+*.log
+*.tmp
+thumbs.db
+ehthumbs.db
+Desktop.ini
