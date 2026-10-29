@@ -15,6 +15,13 @@ namespace HospitalParking.Common
         {
             get
             {
+                // 優先讀取 Railway 等雲端容器自動注入之 DATABASE_URL 環境變數
+                string envDbUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
+                if (!string.IsNullOrWhiteSpace(envDbUrl))
+                {
+                    return FormatConnectionString(envDbUrl);
+                }
+
                 var connSetting = ConfigurationManager.ConnectionStrings["HospitalParkingDB"];
                 string raw = connSetting != null && !string.IsNullOrWhiteSpace(connSetting.ConnectionString)
                     ? connSetting.ConnectionString
