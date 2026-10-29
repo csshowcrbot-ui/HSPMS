@@ -1,5 +1,5 @@
 ## Visual Studio / .NET
-[Bb]in/
+# [Bb]in/ - Included for Railway Docker runtime deployment
 [Oo]bj/
 .vs/
 *.user
