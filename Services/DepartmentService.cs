@@ -1,14 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Data.SqlClient;
+using Npgsql;
 using HospitalParking.Common;
 using HospitalParking.DTOs;
 
 namespace HospitalParking.Services
 {
     /// <summary>
-    /// 醫療院區部門科室與車位配額管理服務 (Department Management Service)
+    /// 醫療院區部門科室與車位配額管理服務 (Department Management Service - PostgreSQL)
     /// </summary>
     public class DepartmentService
     {
@@ -26,7 +26,7 @@ namespace HospitalParking.Services
                     d.DeptName,
                     d.QuotaLimit,
                     d.IsActive,
-                    CONVERT(VARCHAR(19), d.CreatedDate, 120) AS CreatedDate,
+                    TO_CHAR(d.CreatedDate, 'YYYY-MM-DD HH24:MI:SS') AS CreatedDate,
                     (SELECT COUNT(1) FROM ParkingPermits p WHERE p.DeptID = d.DeptID AND p.Status = 'ACTIVE') AS ActivePermitCount,
                     (SELECT COUNT(1) FROM ParkingPermits p WHERE p.DeptID = d.DeptID) AS TotalPermitCount,
                     (SELECT COUNT(1) FROM ParkingEmployeeApplications a WHERE a.DeptID = d.DeptID AND a.ReviewStatus IN ('PENDING', 'PROCESSING', 'WAITLIST', 'APPROVED')) AS PendingAppCount
@@ -91,7 +91,7 @@ namespace HospitalParking.Services
         public DepartmentManageDto GetDepartmentById(int deptId)
         {
             string sql = "SELECT DeptID, DeptCode, DeptName, QuotaLimit, IsActive FROM ParkingDepartments WHERE DeptID = @DeptID";
-            var dt = DbHelper.ExecuteDataTable(sql, new SqlParameter("@DeptID", deptId));
+            var dt = DbHelper.ExecuteDataTable(sql, new NpgsqlParameter("@DeptID", deptId));
             if (dt.Rows.Count == 0) return null;
 
             var r = dt.Rows[0];
@@ -122,9 +122,9 @@ namespace HospitalParking.Services
             // 檢查代碼或名稱是否與其他部門衝突
             string chkSql = "SELECT COUNT(1) FROM ParkingDepartments WHERE (DeptCode = @Code OR DeptName = @Name) AND DeptID <> @DeptID";
             int count = Convert.ToInt32(DbHelper.ExecuteScalar(chkSql,
-                new SqlParameter("@Code", code),
-                new SqlParameter("@Name", name),
-                new SqlParameter("@DeptID", dto.DeptID)));
+                new NpgsqlParameter("@Code", code),
+                new NpgsqlParameter("@Name", name),
+                new NpgsqlParameter("@DeptID", dto.DeptID)));
 
             if (count > 0)
             {
@@ -135,13 +135,13 @@ namespace HospitalParking.Services
             {
                 string insertSql = @"
                     INSERT INTO ParkingDepartments (DeptCode, DeptName, QuotaLimit, IsActive, CreatedDate)
-                    VALUES (@DeptCode, @DeptName, @QuotaLimit, @IsActive, GETDATE())";
+                    VALUES (@DeptCode, @DeptName, @QuotaLimit, @IsActive, CURRENT_TIMESTAMP)";
 
                 DbHelper.ExecuteNonQuery(insertSql,
-                    new SqlParameter("@DeptCode", code),
-                    new SqlParameter("@DeptName", name),
-                    new SqlParameter("@QuotaLimit", dto.QuotaLimit),
-                    new SqlParameter("@IsActive", dto.IsActive));
+                    new NpgsqlParameter("@DeptCode", code),
+                    new NpgsqlParameter("@DeptName", name),
+                    new NpgsqlParameter("@QuotaLimit", dto.QuotaLimit),
+                    new NpgsqlParameter("@IsActive", dto.IsActive));
 
                 return OperationResult.Ok("部門科室已成功建立！");
             }
@@ -156,11 +156,11 @@ namespace HospitalParking.Services
                     WHERE DeptID = @DeptID";
 
                 DbHelper.ExecuteNonQuery(updateSql,
-                    new SqlParameter("@DeptCode", code),
-                    new SqlParameter("@DeptName", name),
-                    new SqlParameter("@QuotaLimit", dto.QuotaLimit),
-                    new SqlParameter("@IsActive", dto.IsActive),
-                    new SqlParameter("@DeptID", dto.DeptID));
+                    new NpgsqlParameter("@DeptCode", code),
+                    new NpgsqlParameter("@DeptName", name),
+                    new NpgsqlParameter("@QuotaLimit", dto.QuotaLimit),
+                    new NpgsqlParameter("@IsActive", dto.IsActive),
+                    new NpgsqlParameter("@DeptID", dto.DeptID));
 
                 return OperationResult.Ok("部門科室資料已成功更新！");
             }
@@ -173,8 +173,8 @@ namespace HospitalParking.Services
         {
             string sql = "UPDATE ParkingDepartments SET IsActive = @IsActive WHERE DeptID = @DeptID";
             DbHelper.ExecuteNonQuery(sql,
-                new SqlParameter("@IsActive", targetStatus),
-                new SqlParameter("@DeptID", deptId));
+                new NpgsqlParameter("@IsActive", targetStatus),
+                new NpgsqlParameter("@DeptID", deptId));
 
             return OperationResult.Ok(string.Format("科室狀態已切換為【{0}】！", targetStatus ? "啟用中" : "已停用"));
         }
@@ -185,21 +185,21 @@ namespace HospitalParking.Services
         public OperationResult DeleteDepartment(int deptId)
         {
             int permitCount = Convert.ToInt32(DbHelper.ExecuteScalar(
-                "SELECT COUNT(1) FROM ParkingPermits WHERE DeptID = @DeptID", new SqlParameter("@DeptID", deptId)));
+                "SELECT COUNT(1) FROM ParkingPermits WHERE DeptID = @DeptID", new NpgsqlParameter("@DeptID", deptId)));
             if (permitCount > 0)
             {
                 return OperationResult.Fail(string.Format("該部門尚有 {0} 筆車輛通行證關聯，無法直接刪除！建議將該部門設為【已停用】。", permitCount));
             }
 
             int appCount = Convert.ToInt32(DbHelper.ExecuteScalar(
-                "SELECT COUNT(1) FROM ParkingEmployeeApplications WHERE DeptID = @DeptID", new SqlParameter("@DeptID", deptId)));
+                "SELECT COUNT(1) FROM ParkingEmployeeApplications WHERE DeptID = @DeptID", new NpgsqlParameter("@DeptID", deptId)));
             if (appCount > 0)
             {
                 return OperationResult.Fail(string.Format("該部門尚有 {0} 筆線上申請紀錄關聯，無法直接刪除！建議將該部門設為【已停用】。", appCount));
             }
 
             string sql = "DELETE FROM ParkingDepartments WHERE DeptID = @DeptID";
-            DbHelper.ExecuteNonQuery(sql, new SqlParameter("@DeptID", deptId));
+            DbHelper.ExecuteNonQuery(sql, new NpgsqlParameter("@DeptID", deptId));
             return OperationResult.Ok("部門科室已成功刪除！");
         }
 
@@ -219,15 +219,15 @@ namespace HospitalParking.Services
                     p.VehicleBrand,
                     p.VehicleColor,
                     z.ZoneName,
-                    CONVERT(VARCHAR(10), p.StartDate, 120) AS StartDate,
-                    CONVERT(VARCHAR(10), p.ExpireDate, 120) AS ExpireDate,
+                    TO_CHAR(p.StartDate, 'YYYY-MM-DD') AS StartDate,
+                    TO_CHAR(p.ExpireDate, 'YYYY-MM-DD') AS ExpireDate,
                     p.Status
                 FROM ParkingPermits p
                 LEFT JOIN ParkingZones z ON p.ZoneID = z.ZoneID
                 WHERE p.DeptID = @DeptID
                 ORDER BY p.Status ASC, p.PermitID DESC";
 
-            var dt = DbHelper.ExecuteDataTable(sql, new SqlParameter("@DeptID", deptId));
+            var dt = DbHelper.ExecuteDataTable(sql, new NpgsqlParameter("@DeptID", deptId));
             foreach (DataRow r in dt.Rows)
             {
                 list.Add(new DepartmentPermitItemDto

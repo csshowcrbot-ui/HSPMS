@@ -1,6 +1,6 @@
 # 醫療院區智慧停車場車輛管理系統 (Hospital Parking Management System - HSPMS)
 
-本系統依據 [code_artifact.md](file:///c:/AI%20TOOLS/HSPMS/code_artifact.md) 與 [ui_ux.md](file:///c:/AI%20TOOLS/HSPMS/ui_ux.md) 規格書完整開發，採用經典企業級 **ASP.NET C# Web Forms 三層架構 (3-Tier Architecture)**，搭配 **Microsoft SQL Server** 資料庫、**Bootstrap 5.3** 響應式前端與 **Chart.js** 戰情視覺化圖表，專門針對醫療院區停車管理、車位配額、員工自助申請與警衛現場行動端巡檢查核量身打造。
+本系統依據 [code_artifact.md](file:///c:/AI%20TOOLS/HSPMS/code_artifact.md) 與 [ui_ux.md](file:///c:/AI%20TOOLS/HSPMS/ui_ux.md) 規格書完整開發，採用經典企業級 **ASP.NET C# Web Forms 三層架構 (3-Tier Architecture)**，搭配 **Railway PostgreSQL (Npgsql)** 資料庫、**Bootstrap 5.3** 響應式前端與 **Chart.js** 戰情視覺化圖表，專門針對醫療院區停車管理、車位配額、員工自助申請與警衛現場行動端巡檢查核量身打造。
 
 ---
 
@@ -50,20 +50,20 @@
 ## 4. 快速建置與執行說明
 
 ### 步驟 1：資料庫連線配置與初始化
-系統支援連線至遠端主機或本機 LocalDB，預設已配置於 `Web.config`：
-* **遠端資料庫連線字串**：
+系統已全面升級遷移至 **Railway PostgreSQL**，預設連線資訊已配置於 `Web.config`：
+* **Railway PostgreSQL 連線字串**：
   ```text
-  Server=210.61.91.243;Database=WebData;User Id=sa;Password=pjk223ty;TrustServerCertificate=True;MultipleActiveResultSets=true;
+  Host=postgres.railway.internal;Port=5432;Database=railway;Username=postgres;Password=iuPBfhRMHqoceSvHBuRPwlezdwgeucap;SSL Mode=Prefer;Trust Server Certificate=true;
   ```
-* **本機測試 LocalDB 初始化**（若欲於本機測試）：
-  ```powershell
-  sqlcmd -S "(localdb)\MSSQLLocalDB" -f 65001 -i "g:\AI Tools\HSPMS\init_database.sql"
-  ```
+  *(若自本機外部環境除錯連線，可替換為 Railway 提供之公網 Public TCP Proxy 網址)*
+* **PostgreSQL 資料庫初始化**：
+  請在 Railway PostgreSQL 控制台 Query 介面或使用 pgAdmin / psql 執行專屬初始化腳本：
+  * [init_database_pg.sql](file:///c:/AI%20TOOLS/HSPMS/init_database_pg.sql)
 
 ### 步驟 2：編譯專案
-專案已提供標準 MSBuild 檔案，可直接使用 Visual Studio 開啟 `HospitalParking.sln`，或於終端機執行 MSBuild：
+專案可直接使用 `dotnet build` 進行編譯建置：
 ```powershell
-& "C:\Windows\Microsoft.NET\Framework\v4.0.30319\MSBuild.exe" "HospitalParking.sln" /p:Configuration=Debug /v:m
+dotnet build HospitalParking.csproj
 ```
 編譯成功後輸出成果於 `bin\HospitalParking.dll`。
 

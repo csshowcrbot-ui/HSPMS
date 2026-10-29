@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Data.SqlClient;
+using Npgsql;
 using HospitalParking.Common;
 using HospitalParking.DTOs;
 
@@ -31,8 +31,8 @@ namespace HospitalParking.Services
             string sqlExpiring = @"
                 SELECT COUNT(1) FROM ParkingPermits 
                 WHERE Status = 'ACTIVE' 
-                  AND ExpireDate >= CAST(GETDATE() AS DATE) 
-                  AND ExpireDate <= DATEADD(DAY, 30, CAST(GETDATE() AS DATE))";
+                  AND ExpireDate >= CURRENT_DATE 
+                  AND ExpireDate <= (CURRENT_DATE + INTERVAL '30 days')";
             if (zoneFilter.HasValue && zoneFilter.Value > 0)
             {
                 sqlExpiring += " AND ZoneID = " + zoneFilter.Value;
@@ -41,7 +41,7 @@ namespace HospitalParking.Services
 
             string sqlInspectToday = @"
                 SELECT COUNT(1) FROM ParkingInspectionLogs 
-                WHERE CAST(InspectTime AS DATE) = CAST(GETDATE() AS DATE)";
+                WHERE CAST(InspectTime AS DATE) = CURRENT_DATE";
             if (zoneFilter.HasValue && zoneFilter.Value > 0)
             {
                 sqlInspectToday += " AND ZoneID = " + zoneFilter.Value;
@@ -53,7 +53,7 @@ namespace HospitalParking.Services
                 SELECT z.ZoneID, z.ZoneCode, z.ZoneName, z.TotalCapacity, z.WarningThresholdPct,
                        (SELECT COUNT(1) FROM ParkingPermits p WHERE p.ZoneID = z.ZoneID AND p.Status = 'ACTIVE') AS OccupiedCount
                 FROM ParkingZones z
-                WHERE z.IsActive = 1
+                WHERE z.IsActive = TRUE
                 ORDER BY z.ZoneCode";
 
             var dtZones = DbHelper.ExecuteDataTable(sqlZones);
@@ -79,13 +79,14 @@ namespace HospitalParking.Services
 
             // 3. 部門車位佔用排行 (前 6 大部門)
             string sqlDept = @"
-                SELECT TOP 6 d.DeptName, d.QuotaLimit,
+                SELECT d.DeptName, d.QuotaLimit,
                        COUNT(p.PermitID) AS PermitCount
                 FROM ParkingDepartments d
                 LEFT JOIN ParkingPermits p ON d.DeptID = p.DeptID AND p.Status = 'ACTIVE'
-                WHERE d.IsActive = 1
+                WHERE d.IsActive = TRUE
                 GROUP BY d.DeptID, d.DeptName, d.QuotaLimit
-                ORDER BY PermitCount DESC, d.DeptName";
+                ORDER BY PermitCount DESC, d.DeptName
+                LIMIT 6";
 
             var dtDept = DbHelper.ExecuteDataTable(sqlDept);
             foreach (DataRow row in dtDept.Rows)
@@ -165,7 +166,7 @@ namespace HospitalParking.Services
 
             // 1. 查詢部門基本資訊與配額
             string sqlDept = "SELECT DeptID, DeptName, QuotaLimit FROM ParkingDepartments WHERE DeptName = @DeptName";
-            var dtDept = DbHelper.ExecuteDataTable(sqlDept, new SqlParameter("@DeptName", deptName.Trim()));
+            var dtDept = DbHelper.ExecuteDataTable(sqlDept, new NpgsqlParameter("@DeptName", deptName.Trim()));
             if (dtDept.Rows.Count > 0)
             {
                 result.DeptID = Convert.ToInt32(dtDept.Rows[0]["DeptID"]);
@@ -177,9 +178,9 @@ namespace HospitalParking.Services
                 SELECT p.PermitID, p.PermitNumber, p.DeptID, d.DeptName, p.CardNumber, p.OwnerName,
                        p.SensorTagNumber, p.RemoteControllerNo, p.VehicleColor, p.LicensePlate,
                        p.VehicleBrand, p.ZoneID, z.ZoneName,
-                       CONVERT(VARCHAR(10), p.RegisterDate, 120) AS RegisterDate,
-                       CONVERT(VARCHAR(10), p.StartDate, 120) AS StartDate,
-                       CONVERT(VARCHAR(10), p.ExpireDate, 120) AS ExpireDate,
+                       TO_CHAR(p.RegisterDate, 'YYYY-MM-DD') AS RegisterDate,
+                       TO_CHAR(p.StartDate, 'YYYY-MM-DD') AS StartDate,
+                       TO_CHAR(p.ExpireDate, 'YYYY-MM-DD') AS ExpireDate,
                        p.ExpireDate AS ExpDateRaw,
                        p.Status, p.Remarks
                 FROM ParkingPermits p
@@ -188,7 +189,7 @@ namespace HospitalParking.Services
                 WHERE d.DeptName = @DeptName AND p.Status = 'ACTIVE'
                 ORDER BY p.PermitID DESC";
 
-            var dtPermits = DbHelper.ExecuteDataTable(sqlPermits, new SqlParameter("@DeptName", deptName.Trim()));
+            var dtPermits = DbHelper.ExecuteDataTable(sqlPermits, new NpgsqlParameter("@DeptName", deptName.Trim()));
             DateTime today = DateTime.Today;
             foreach (DataRow dr in dtPermits.Rows)
             {
@@ -235,7 +236,7 @@ namespace HospitalParking.Services
 
             // 1. 查詢該場域配置資訊
             string sqlZone = "SELECT ZoneID, ZoneCode, ZoneName, TotalCapacity, WarningThresholdPct FROM ParkingZones WHERE ZoneID = @ZoneID";
-            var dtZone = DbHelper.ExecuteDataTable(sqlZone, new SqlParameter("@ZoneID", zoneId));
+            var dtZone = DbHelper.ExecuteDataTable(sqlZone, new NpgsqlParameter("@ZoneID", zoneId));
             if (dtZone.Rows.Count > 0)
             {
                 result.ZoneCode = dtZone.Rows[0]["ZoneCode"].ToString();
@@ -249,9 +250,9 @@ namespace HospitalParking.Services
                 SELECT p.PermitID, p.PermitNumber, p.DeptID, d.DeptName, p.CardNumber, p.OwnerName,
                        p.SensorTagNumber, p.RemoteControllerNo, p.VehicleColor, p.LicensePlate,
                        p.VehicleBrand, p.ZoneID, z.ZoneName,
-                       CONVERT(VARCHAR(10), p.RegisterDate, 120) AS RegisterDate,
-                       CONVERT(VARCHAR(10), p.StartDate, 120) AS StartDate,
-                       CONVERT(VARCHAR(10), p.ExpireDate, 120) AS ExpireDate,
+                       TO_CHAR(p.RegisterDate, 'YYYY-MM-DD') AS RegisterDate,
+                       TO_CHAR(p.StartDate, 'YYYY-MM-DD') AS StartDate,
+                       TO_CHAR(p.ExpireDate, 'YYYY-MM-DD') AS ExpireDate,
                        p.ExpireDate AS ExpDateRaw,
                        p.Status, p.Remarks
                 FROM ParkingPermits p
@@ -260,7 +261,7 @@ namespace HospitalParking.Services
                 WHERE p.ZoneID = @ZoneID AND p.Status = 'ACTIVE'
                 ORDER BY p.PermitID DESC";
 
-            var dtPermits = DbHelper.ExecuteDataTable(sqlPermits, new SqlParameter("@ZoneID", zoneId));
+            var dtPermits = DbHelper.ExecuteDataTable(sqlPermits, new NpgsqlParameter("@ZoneID", zoneId));
             DateTime today = DateTime.Today;
             foreach (DataRow dr in dtPermits.Rows)
             {
@@ -336,7 +337,7 @@ namespace HospitalParking.Services
 
             string sql = @"
                 SELECT l.LogID,
-                       CONVERT(VARCHAR(16), l.InspectTime, 120) AS InspectTime,
+                       TO_CHAR(l.InspectTime, 'YYYY-MM-DD HH24:MI') AS InspectTime,
                        l.InspectorAccount,
                        l.ZoneID,
                        z.ZoneName,
@@ -354,16 +355,16 @@ namespace HospitalParking.Services
                 LEFT JOIN ParkingZones pz ON p.ZoneID = pz.ZoneID
                 WHERE 1=1 ";
 
-            var pars = new List<SqlParameter>();
+            var pars = new List<NpgsqlParameter>();
             if (!string.IsNullOrWhiteSpace(resultStatus) && resultStatus != "ALL")
             {
                 sql += " AND l.ResultStatus = @Status ";
-                pars.Add(new SqlParameter("@Status", resultStatus));
+                pars.Add(new NpgsqlParameter("@Status", resultStatus));
             }
             if (zoneFilter.HasValue && zoneFilter.Value > 0)
             {
                 sql += " AND l.ZoneID = @ZoneID ";
-                pars.Add(new SqlParameter("@ZoneID", zoneFilter.Value));
+                pars.Add(new NpgsqlParameter("@ZoneID", zoneFilter.Value));
             }
 
             sql += " ORDER BY l.LogID DESC";

@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Data.SqlClient;
+using Npgsql;
 using System.IO;
 using System.Web;
 using HospitalParking.Common;
@@ -31,21 +31,21 @@ namespace HospitalParking.Services
 
             // 1. 取得當前巡檢區域名稱
             string zoneSql = "SELECT ZoneName FROM ParkingZones WHERE ZoneID = @ZoneID";
-            var zoneObj = DbHelper.ExecuteScalar(zoneSql, new SqlParameter("@ZoneID", currentZoneId));
+            var zoneObj = DbHelper.ExecuteScalar(zoneSql, new NpgsqlParameter("@ZoneID", currentZoneId));
             result.CurrentZoneName = zoneObj != null ? zoneObj.ToString() : "未知區域";
 
             // 2. 查詢車籍主檔
             string permitSql = @"
                 SELECT p.PermitID, p.PermitNumber, p.OwnerName, d.DeptName, p.ZoneID, z.ZoneName, 
                        p.SensorTagNumber, p.RemoteControllerNo, p.VehicleColor, p.VehicleBrand, p.CardNumber,
-                       CONVERT(VARCHAR(10), p.ExpireDate, 120) AS ExpireDate,
+                       TO_CHAR(p.ExpireDate, 'YYYY-MM-DD') AS ExpireDate,
                        p.ExpireDate AS ExpDateRaw, p.Status
                 FROM ParkingPermits p
                 INNER JOIN ParkingDepartments d ON p.DeptID = d.DeptID
                 INNER JOIN ParkingZones z ON p.ZoneID = z.ZoneID
                 WHERE p.CleanPlate = @CleanPlate";
 
-            var dt = DbHelper.ExecuteDataTable(permitSql, new SqlParameter("@CleanPlate", cleanPlate));
+            var dt = DbHelper.ExecuteDataTable(permitSql, new NpgsqlParameter("@CleanPlate", cleanPlate));
 
             if (dt.Rows.Count > 0)
             {
@@ -110,16 +110,16 @@ namespace HospitalParking.Services
 
             string sql = @"
                 INSERT INTO ParkingInspectionLogs (InspectTime, InspectorAccount, ZoneID, PlateScanned, PermitID, ResultStatus, PhotoPath, Remark)
-                VALUES (GETDATE(), @Inspector, @ZoneID, @Plate, @PermitID, @Status, @PhotoPath, @Remark)";
+                VALUES (CURRENT_TIMESTAMP, @Inspector, @ZoneID, @Plate, @PermitID, @Status, @PhotoPath, @Remark)";
 
             DbHelper.ExecuteNonQuery(sql,
-                new SqlParameter("@Inspector", inspector),
-                new SqlParameter("@ZoneID", zoneId),
-                new SqlParameter("@Plate", plate),
-                new SqlParameter("@PermitID", (object)permitId ?? DBNull.Value),
-                new SqlParameter("@Status", status),
-                new SqlParameter("@PhotoPath", (object)photoPath ?? DBNull.Value),
-                new SqlParameter("@Remark", (object)remark ?? DBNull.Value)
+                new NpgsqlParameter("@Inspector", inspector),
+                new NpgsqlParameter("@ZoneID", zoneId),
+                new NpgsqlParameter("@Plate", plate),
+                new NpgsqlParameter("@PermitID", (object)permitId ?? DBNull.Value),
+                new NpgsqlParameter("@Status", status),
+                new NpgsqlParameter("@PhotoPath", (object)photoPath ?? DBNull.Value),
+                new NpgsqlParameter("@Remark", (object)remark ?? DBNull.Value)
             );
         }
 
@@ -127,9 +127,9 @@ namespace HospitalParking.Services
         {
             var list = new List<InspectionLogDto>();
             string sql = @"
-                SELECT TOP (@Count)
+                SELECT 
                     l.LogID,
-                    CONVERT(VARCHAR(16), l.InspectTime, 120) AS InspectTime,
+                    TO_CHAR(l.InspectTime, 'YYYY-MM-DD HH24:MI') AS InspectTime,
                     l.InspectorAccount,
                     l.ZoneID,
                     z.ZoneName,
@@ -143,15 +143,15 @@ namespace HospitalParking.Services
                 LEFT JOIN ParkingPermits p ON l.PermitID = p.PermitID
                 WHERE 1=1 ";
 
-            var pars = new List<SqlParameter>();
-            pars.Add(new SqlParameter("@Count", count <= 0 ? 10 : count));
+            var pars = new List<NpgsqlParameter>();
+            pars.Add(new NpgsqlParameter("@Count", count <= 0 ? 10 : count));
 
             if (zoneId > 0)
             {
                 sql += " AND l.ZoneID = @ZoneID ";
-                pars.Add(new SqlParameter("@ZoneID", zoneId));
+                pars.Add(new NpgsqlParameter("@ZoneID", zoneId));
             }
-            sql += " ORDER BY l.LogID DESC";
+            sql += " ORDER BY l.LogID DESC LIMIT @Count";
 
             var dt = DbHelper.ExecuteDataTable(sql, pars.ToArray());
             foreach (DataRow dr in dt.Rows)

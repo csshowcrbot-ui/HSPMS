@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Data.SqlClient;
+using Npgsql;
 using System.Text;
 using HospitalParking.Common;
 using HospitalParking.DTOs;
@@ -18,7 +18,7 @@ namespace HospitalParking.Services
                 SELECT d.DeptID, d.DeptCode, d.DeptName, d.QuotaLimit,
                        (SELECT COUNT(1) FROM ParkingPermits p WHERE p.DeptID = d.DeptID AND p.Status = 'ACTIVE') AS CurrentUsed
                 FROM ParkingDepartments d
-                WHERE d.IsActive = 1
+                WHERE d.IsActive = TRUE
                 ORDER BY d.DeptName";
 
             var dtDept = DbHelper.ExecuteDataTable(sqlDept);
@@ -38,7 +38,7 @@ namespace HospitalParking.Services
                 SELECT z.ZoneID, z.ZoneCode, z.ZoneName, z.TotalCapacity, z.WarningThresholdPct,
                        (SELECT COUNT(1) FROM ParkingPermits p WHERE p.ZoneID = z.ZoneID AND p.Status = 'ACTIVE') AS CurrentOccupied
                 FROM ParkingZones z
-                WHERE z.IsActive = 1
+                WHERE z.IsActive = TRUE
                 ORDER BY z.ZoneCode";
 
             var dtZone = DbHelper.ExecuteDataTable(sqlZone);
@@ -70,9 +70,9 @@ namespace HospitalParking.Services
                 SELECT p.PermitID, p.PermitNumber, p.DeptID, d.DeptName, p.CardNumber, p.OwnerName,
                        p.SensorTagNumber, p.RemoteControllerNo, p.VehicleColor, p.LicensePlate,
                        p.VehicleBrand, p.ZoneID, z.ZoneName,
-                       CONVERT(VARCHAR(10), p.RegisterDate, 120) AS RegisterDate,
-                       CONVERT(VARCHAR(10), p.StartDate, 120) AS StartDate,
-                       CONVERT(VARCHAR(10), p.ExpireDate, 120) AS ExpireDate,
+                       TO_CHAR(p.RegisterDate, 'YYYY-MM-DD') AS RegisterDate,
+                       TO_CHAR(p.StartDate, 'YYYY-MM-DD') AS StartDate,
+                       TO_CHAR(p.ExpireDate, 'YYYY-MM-DD') AS ExpireDate,
                        p.ExpireDate AS ExpDateRaw,
                        p.Status, p.Remarks
                 FROM ParkingPermits p
@@ -80,32 +80,32 @@ namespace HospitalParking.Services
                 INNER JOIN ParkingZones z ON p.ZoneID = z.ZoneID
                 WHERE 1=1 ";
 
-            var pars = new List<SqlParameter>();
+            var pars = new List<NpgsqlParameter>();
 
             if (criteria != null)
             {
                 if (criteria.DeptID.HasValue && criteria.DeptID.Value > 0)
                 {
                     sql += " AND p.DeptID = @DeptID ";
-                    pars.Add(new SqlParameter("@DeptID", criteria.DeptID.Value));
+                    pars.Add(new NpgsqlParameter("@DeptID", criteria.DeptID.Value));
                 }
 
                 if (criteria.ZoneID.HasValue && criteria.ZoneID.Value > 0)
                 {
                     sql += " AND p.ZoneID = @ZoneID ";
-                    pars.Add(new SqlParameter("@ZoneID", criteria.ZoneID.Value));
+                    pars.Add(new NpgsqlParameter("@ZoneID", criteria.ZoneID.Value));
                 }
 
                 if (!string.IsNullOrWhiteSpace(criteria.Status))
                 {
                     if (criteria.Status == "EXPIRING_SOON")
                     {
-                        sql += " AND p.Status = 'ACTIVE' AND p.ExpireDate >= CAST(GETDATE() AS DATE) AND p.ExpireDate <= DATEADD(DAY, 30, CAST(GETDATE() AS DATE)) ";
+                        sql += " AND p.Status = 'ACTIVE' AND p.ExpireDate >= CURRENT_DATE AND p.ExpireDate <= (CURRENT_DATE + INTERVAL '30 days') ";
                     }
                     else
                     {
                         sql += " AND p.Status = @Status ";
-                        pars.Add(new SqlParameter("@Status", criteria.Status));
+                        pars.Add(new NpgsqlParameter("@Status", criteria.Status));
                     }
                 }
 
@@ -113,9 +113,9 @@ namespace HospitalParking.Services
                 {
                     string kw = criteria.Keyword.Trim();
                     string cleanKw = kw.Replace("-", "").Replace(" ", "");
-                    sql += " AND (p.LicensePlate LIKE @Kw OR p.CleanPlate LIKE @CleanKw OR p.OwnerName LIKE @Kw OR p.CardNumber LIKE @Kw OR p.PermitNumber LIKE @Kw OR p.SensorTagNumber LIKE @Kw) ";
-                    pars.Add(new SqlParameter("@Kw", "%" + kw + "%"));
-                    pars.Add(new SqlParameter("@CleanKw", "%" + cleanKw + "%"));
+                    sql += " AND (p.LicensePlate ILIKE @Kw OR p.CleanPlate ILIKE @CleanKw OR p.OwnerName ILIKE @Kw OR p.CardNumber ILIKE @Kw OR p.PermitNumber ILIKE @Kw OR p.SensorTagNumber ILIKE @Kw) ";
+                    pars.Add(new NpgsqlParameter("@Kw", "%" + kw + "%"));
+                    pars.Add(new NpgsqlParameter("@CleanKw", "%" + cleanKw + "%"));
                 }
             }
 
@@ -164,9 +164,9 @@ namespace HospitalParking.Services
                 SELECT p.PermitID, p.PermitNumber, p.DeptID, d.DeptName, p.CardNumber, p.OwnerName,
                        p.SensorTagNumber, p.RemoteControllerNo, p.VehicleColor, p.LicensePlate,
                        p.VehicleBrand, p.ZoneID, z.ZoneName,
-                       CONVERT(VARCHAR(10), p.RegisterDate, 120) AS RegisterDate,
-                       CONVERT(VARCHAR(10), p.StartDate, 120) AS StartDate,
-                       CONVERT(VARCHAR(10), p.ExpireDate, 120) AS ExpireDate,
+                       TO_CHAR(p.RegisterDate, 'YYYY-MM-DD') AS RegisterDate,
+                       TO_CHAR(p.StartDate, 'YYYY-MM-DD') AS StartDate,
+                       TO_CHAR(p.ExpireDate, 'YYYY-MM-DD') AS ExpireDate,
                        p.ExpireDate AS ExpDateRaw,
                        p.Status, p.Remarks
                 FROM ParkingPermits p
@@ -174,7 +174,7 @@ namespace HospitalParking.Services
                 INNER JOIN ParkingZones z ON p.ZoneID = z.ZoneID
                 WHERE p.PermitID = @PermitID";
 
-            var dt = DbHelper.ExecuteDataTable(sql, new SqlParameter("@PermitID", permitId));
+            var dt = DbHelper.ExecuteDataTable(sql, new NpgsqlParameter("@PermitID", permitId));
             if (dt.Rows.Count == 0) return null;
 
             var dr = dt.Rows[0];
@@ -236,9 +236,9 @@ namespace HospitalParking.Services
                   AND PermitID <> @PermitID";
 
             int count = Convert.ToInt32(DbHelper.ExecuteScalar(chkSql,
-                new SqlParameter("@Plate", dto.LicensePlate),
-                new SqlParameter("@PermitNum", dto.PermitNumber),
-                new SqlParameter("@PermitID", dto.PermitID)));
+                new NpgsqlParameter("@Plate", dto.LicensePlate),
+                new NpgsqlParameter("@PermitNum", dto.PermitNumber),
+                new NpgsqlParameter("@PermitID", dto.PermitID)));
 
             if (count > 0)
             {
@@ -265,21 +265,21 @@ namespace HospitalParking.Services
                     )";
 
                 DbHelper.ExecuteNonQuery(insertSql,
-                    new SqlParameter("@PermitNumber", dto.PermitNumber),
-                    new SqlParameter("@DeptID", dto.DeptID),
-                    new SqlParameter("@CardNumber", (object)dto.CardNumber ?? DBNull.Value),
-                    new SqlParameter("@OwnerName", dto.OwnerName),
-                    new SqlParameter("@SensorTagNumber", (object)dto.SensorTagNumber ?? DBNull.Value),
-                    new SqlParameter("@RemoteControllerNo", (object)dto.RemoteControllerNo ?? DBNull.Value),
-                    new SqlParameter("@VehicleColor", dto.VehicleColor ?? ""),
-                    new SqlParameter("@LicensePlate", dto.LicensePlate),
-                    new SqlParameter("@VehicleBrand", dto.VehicleBrand ?? ""),
-                    new SqlParameter("@ZoneID", dto.ZoneID),
-                    new SqlParameter("@RegisterDate", registerDate),
-                    new SqlParameter("@StartDate", startDate),
-                    new SqlParameter("@ExpireDate", expireDate),
-                    new SqlParameter("@Status", status),
-                    new SqlParameter("@Remarks", (object)dto.Remarks ?? DBNull.Value)
+                    new NpgsqlParameter("@PermitNumber", dto.PermitNumber),
+                    new NpgsqlParameter("@DeptID", dto.DeptID),
+                    new NpgsqlParameter("@CardNumber", (object)dto.CardNumber ?? DBNull.Value),
+                    new NpgsqlParameter("@OwnerName", dto.OwnerName),
+                    new NpgsqlParameter("@SensorTagNumber", (object)dto.SensorTagNumber ?? DBNull.Value),
+                    new NpgsqlParameter("@RemoteControllerNo", (object)dto.RemoteControllerNo ?? DBNull.Value),
+                    new NpgsqlParameter("@VehicleColor", dto.VehicleColor ?? ""),
+                    new NpgsqlParameter("@LicensePlate", dto.LicensePlate),
+                    new NpgsqlParameter("@VehicleBrand", dto.VehicleBrand ?? ""),
+                    new NpgsqlParameter("@ZoneID", dto.ZoneID),
+                    new NpgsqlParameter("@RegisterDate", registerDate),
+                    new NpgsqlParameter("@StartDate", startDate),
+                    new NpgsqlParameter("@ExpireDate", expireDate),
+                    new NpgsqlParameter("@Status", status),
+                    new NpgsqlParameter("@Remarks", (object)dto.Remarks ?? DBNull.Value)
                 );
 
                 return OperationResult.Ok("通行證新增成功！");
@@ -302,25 +302,25 @@ namespace HospitalParking.Services
                         ExpireDate = @ExpireDate,
                         Status = @Status,
                         Remarks = @Remarks,
-                        UpdatedDate = GETDATE()
+                        UpdatedDate = CURRENT_TIMESTAMP
                     WHERE PermitID = @PermitID";
 
                 DbHelper.ExecuteNonQuery(updateSql,
-                    new SqlParameter("@PermitID", dto.PermitID),
-                    new SqlParameter("@PermitNumber", dto.PermitNumber),
-                    new SqlParameter("@DeptID", dto.DeptID),
-                    new SqlParameter("@CardNumber", (object)dto.CardNumber ?? DBNull.Value),
-                    new SqlParameter("@OwnerName", dto.OwnerName),
-                    new SqlParameter("@SensorTagNumber", (object)dto.SensorTagNumber ?? DBNull.Value),
-                    new SqlParameter("@RemoteControllerNo", (object)dto.RemoteControllerNo ?? DBNull.Value),
-                    new SqlParameter("@VehicleColor", dto.VehicleColor ?? ""),
-                    new SqlParameter("@LicensePlate", dto.LicensePlate),
-                    new SqlParameter("@VehicleBrand", dto.VehicleBrand ?? ""),
-                    new SqlParameter("@ZoneID", dto.ZoneID),
-                    new SqlParameter("@StartDate", startDate),
-                    new SqlParameter("@ExpireDate", expireDate),
-                    new SqlParameter("@Status", status),
-                    new SqlParameter("@Remarks", (object)dto.Remarks ?? DBNull.Value)
+                    new NpgsqlParameter("@PermitID", dto.PermitID),
+                    new NpgsqlParameter("@PermitNumber", dto.PermitNumber),
+                    new NpgsqlParameter("@DeptID", dto.DeptID),
+                    new NpgsqlParameter("@CardNumber", (object)dto.CardNumber ?? DBNull.Value),
+                    new NpgsqlParameter("@OwnerName", dto.OwnerName),
+                    new NpgsqlParameter("@SensorTagNumber", (object)dto.SensorTagNumber ?? DBNull.Value),
+                    new NpgsqlParameter("@RemoteControllerNo", (object)dto.RemoteControllerNo ?? DBNull.Value),
+                    new NpgsqlParameter("@VehicleColor", dto.VehicleColor ?? ""),
+                    new NpgsqlParameter("@LicensePlate", dto.LicensePlate),
+                    new NpgsqlParameter("@VehicleBrand", dto.VehicleBrand ?? ""),
+                    new NpgsqlParameter("@ZoneID", dto.ZoneID),
+                    new NpgsqlParameter("@StartDate", startDate),
+                    new NpgsqlParameter("@ExpireDate", expireDate),
+                    new NpgsqlParameter("@Status", status),
+                    new NpgsqlParameter("@Remarks", (object)dto.Remarks ?? DBNull.Value)
                 );
 
                 return OperationResult.Ok("通行證已成功更新！");
@@ -340,14 +340,14 @@ namespace HospitalParking.Services
             {
                 string sql = @"
                     UPDATE ParkingPermits SET
-                        ExpireDate = DATEADD(MONTH, @Months, CASE WHEN ExpireDate < GETDATE() THEN GETDATE() ELSE ExpireDate END),
+                        ExpireDate = (CASE WHEN ExpireDate < CURRENT_DATE THEN CURRENT_DATE ELSE ExpireDate END) + (@Months || ' month')::interval,
                         Status = 'ACTIVE',
-                        UpdatedDate = GETDATE()
+                        UpdatedDate = CURRENT_TIMESTAMP
                     WHERE PermitID = @PermitID";
 
                 updated += DbHelper.ExecuteNonQuery(sql,
-                    new SqlParameter("@Months", dto.ExtendMonths),
-                    new SqlParameter("@PermitID", id));
+                    new NpgsqlParameter("@Months", dto.ExtendMonths),
+                    new NpgsqlParameter("@PermitID", id));
             }
 
             return OperationResult.Ok(string.Format("成功完成 {0} 筆車籍通行證展期 (+{1} 個月)！", updated, dto.ExtendMonths));
@@ -358,13 +358,13 @@ namespace HospitalParking.Services
             string sql = @"
                 UPDATE ParkingPermits SET 
                     Status = 'REVOKED',
-                    Remarks = ISNULL(Remarks + ' | ', '') + @Reason,
-                    UpdatedDate = GETDATE()
+                    Remarks = COALESCE(Remarks || ' | ', '') || @Reason,
+                    UpdatedDate = CURRENT_TIMESTAMP
                 WHERE PermitID = @PermitID";
 
             int rows = DbHelper.ExecuteNonQuery(sql,
-                new SqlParameter("@PermitID", permitId),
-                new SqlParameter("@Reason", "【註銷: " + DateTime.Now.ToString("yyyy-MM-dd") + " " + reason + "】"));
+                new NpgsqlParameter("@PermitID", permitId),
+                new NpgsqlParameter("@Reason", "【註銷: " + DateTime.Now.ToString("yyyy-MM-dd") + " " + reason + "】"));
 
             if (rows > 0) return OperationResult.Ok("通行證已成功註銷停權！");
             return OperationResult.Fail("查無此通行證！");
@@ -374,7 +374,7 @@ namespace HospitalParking.Services
         {
             // 檢查巡檢紀錄外鍵
             string chkSql = "SELECT COUNT(1) FROM ParkingInspectionLogs WHERE PermitID = @PermitID";
-            int refLogs = Convert.ToInt32(DbHelper.ExecuteScalar(chkSql, new SqlParameter("@PermitID", permitId)));
+            int refLogs = Convert.ToInt32(DbHelper.ExecuteScalar(chkSql, new NpgsqlParameter("@PermitID", permitId)));
             if (refLogs > 0)
             {
                 // 若有外鍵關聯，轉為註銷
@@ -382,7 +382,7 @@ namespace HospitalParking.Services
             }
 
             string sql = "DELETE FROM ParkingPermits WHERE PermitID = @PermitID";
-            int rows = DbHelper.ExecuteNonQuery(sql, new SqlParameter("@PermitID", permitId));
+            int rows = DbHelper.ExecuteNonQuery(sql, new NpgsqlParameter("@PermitID", permitId));
             if (rows > 0) return OperationResult.Ok("通行證已刪除！");
             return OperationResult.Fail("刪除失敗，查無紀錄！");
         }
@@ -413,8 +413,8 @@ namespace HospitalParking.Services
             sb.Append('\uFEFF'); // UTF-8 BOM
             sb.AppendLine("部門科室 (代碼或全稱皆可),員工姓名,員工卡號,車牌號碼,車輛廠牌,車輛顏色,停放區域 (代碼或名稱皆可),感應卡號,遙控器編號,開始日期,到期日期,備註說明");
 
-            var dtDepts = DbHelper.ExecuteDataTable("SELECT DeptCode, DeptName FROM ParkingDepartments WHERE IsActive = 1 ORDER BY DeptID");
-            var dtZones = DbHelper.ExecuteDataTable("SELECT ZoneCode, ZoneName FROM ParkingZones WHERE IsActive = 1 ORDER BY ZoneID");
+            var dtDepts = DbHelper.ExecuteDataTable("SELECT DeptCode, DeptName FROM ParkingDepartments WHERE IsActive = TRUE ORDER BY DeptID");
+            var dtZones = DbHelper.ExecuteDataTable("SELECT ZoneCode, ZoneName FROM ParkingZones WHERE IsActive = TRUE ORDER BY ZoneID");
 
             string d1 = dtDepts.Rows.Count > 0 ? dtDepts.Rows[0]["DeptCode"].ToString() : "DEPT01";
             string d2 = dtDepts.Rows.Count > 1 ? dtDepts.Rows[1]["DeptName"].ToString() : (dtDepts.Rows.Count > 0 ? dtDepts.Rows[0]["DeptName"].ToString() : "醫護部");
@@ -443,8 +443,8 @@ namespace HospitalParking.Services
             result.TotalCount = items.Count;
 
             // 快取所有有效的部門與停車區域字典
-            var dtDepts = DbHelper.ExecuteDataTable("SELECT DeptID, DeptCode, DeptName FROM ParkingDepartments WHERE IsActive = 1");
-            var dtZones = DbHelper.ExecuteDataTable("SELECT ZoneID, ZoneCode, ZoneName FROM ParkingZones WHERE IsActive = 1");
+            var dtDepts = DbHelper.ExecuteDataTable("SELECT DeptID, DeptCode, DeptName FROM ParkingDepartments WHERE IsActive = TRUE");
+            var dtZones = DbHelper.ExecuteDataTable("SELECT ZoneID, ZoneCode, ZoneName FROM ParkingZones WHERE IsActive = TRUE");
 
             var deptDict = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             foreach (DataRow r in dtDepts.Rows)
@@ -499,7 +499,7 @@ namespace HospitalParking.Services
 
                 // 檢查資料庫車牌是否已存在且 ACTIVE
                 string chkSql = "SELECT COUNT(1) FROM ParkingPermits WHERE CleanPlate = @CleanPlate AND Status = 'ACTIVE'";
-                int existingCount = Convert.ToInt32(DbHelper.ExecuteScalar(chkSql, new SqlParameter("@CleanPlate", cleanPlate)));
+                int existingCount = Convert.ToInt32(DbHelper.ExecuteScalar(chkSql, new NpgsqlParameter("@CleanPlate", cleanPlate)));
                 if (existingCount > 0)
                 {
                     if (skipDuplicates)
@@ -607,8 +607,8 @@ namespace HospitalParking.Services
                 // 產生通行證號 PRK-YYYYMM-XXX
                 string prefix = "PRK-" + DateTime.Now.ToString("yyyyMM") + "-";
                 int nextSeq = 1;
-                string maxSql = "SELECT TOP 1 PermitNumber FROM ParkingPermits WHERE PermitNumber LIKE @Prefix ORDER BY PermitNumber DESC";
-                object maxObj = DbHelper.ExecuteScalar(maxSql, new SqlParameter("@Prefix", prefix + "%"));
+                string maxSql = "SELECT PermitNumber FROM ParkingPermits WHERE PermitNumber LIKE @Prefix ORDER BY PermitNumber DESC LIMIT 1";
+                object maxObj = DbHelper.ExecuteScalar(maxSql, new NpgsqlParameter("@Prefix", prefix + "%"));
                 if (maxObj != null && maxObj != DBNull.Value)
                 {
                     string maxStr = maxObj.ToString();
@@ -623,7 +623,7 @@ namespace HospitalParking.Services
                     }
                 }
                 string permitNo = string.Format("{0}{1:D3}", prefix, nextSeq);
-                while (Convert.ToInt32(DbHelper.ExecuteScalar("SELECT COUNT(1) FROM ParkingPermits WHERE PermitNumber = @PermitNo", new SqlParameter("@PermitNo", permitNo))) > 0)
+                while (Convert.ToInt32(DbHelper.ExecuteScalar("SELECT COUNT(1) FROM ParkingPermits WHERE PermitNumber = @PermitNo", new NpgsqlParameter("@PermitNo", permitNo))) > 0)
                 {
                     nextSeq++;
                     permitNo = string.Format("{0}{1:D3}", prefix, nextSeq);
@@ -647,20 +647,20 @@ namespace HospitalParking.Services
                 try
                 {
                     DbHelper.ExecuteNonQuery(insertSql,
-                        new SqlParameter("@PermitNumber", permitNo),
-                        new SqlParameter("@DeptID", deptId),
-                        new SqlParameter("@CardNumber", card),
-                        new SqlParameter("@OwnerName", owner),
-                        new SqlParameter("@SensorTagNumber", tag),
-                        new SqlParameter("@RemoteControllerNo", remote),
-                        new SqlParameter("@VehicleColor", color),
-                        new SqlParameter("@LicensePlate", plate),
-                        new SqlParameter("@VehicleBrand", brand),
-                        new SqlParameter("@ZoneID", zoneId),
-                        new SqlParameter("@RegisterDate", DateTime.Today),
-                        new SqlParameter("@StartDate", start),
-                        new SqlParameter("@ExpireDate", expire),
-                        new SqlParameter("@Remarks", remarks)
+                        new NpgsqlParameter("@PermitNumber", permitNo),
+                        new NpgsqlParameter("@DeptID", deptId),
+                        new NpgsqlParameter("@CardNumber", card),
+                        new NpgsqlParameter("@OwnerName", owner),
+                        new NpgsqlParameter("@SensorTagNumber", tag),
+                        new NpgsqlParameter("@RemoteControllerNo", remote),
+                        new NpgsqlParameter("@VehicleColor", color),
+                        new NpgsqlParameter("@LicensePlate", plate),
+                        new NpgsqlParameter("@VehicleBrand", brand),
+                        new NpgsqlParameter("@ZoneID", zoneId),
+                        new NpgsqlParameter("@RegisterDate", DateTime.Today),
+                        new NpgsqlParameter("@StartDate", start),
+                        new NpgsqlParameter("@ExpireDate", expire),
+                        new NpgsqlParameter("@Remarks", remarks)
                     );
 
                     processedPlatesInBatch.Add(cleanPlate);

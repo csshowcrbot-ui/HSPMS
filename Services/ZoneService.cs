@@ -1,14 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Data.SqlClient;
+using Npgsql;
 using HospitalParking.Common;
 using HospitalParking.DTOs;
 
 namespace HospitalParking.Services
 {
     /// <summary>
-    /// 停車場場域維護與容量管理服務 (Zone Management Service)
+    /// 停車場場域維護與容量管理服務 (Zone Management Service - PostgreSQL)
     /// </summary>
     public class ZoneService
     {
@@ -27,7 +27,7 @@ namespace HospitalParking.Services
                     z.TotalCapacity,
                     z.WarningThresholdPct,
                     z.IsActive,
-                    CONVERT(VARCHAR(19), z.CreatedDate, 120) AS CreatedDate,
+                    TO_CHAR(z.CreatedDate, 'YYYY-MM-DD HH24:MI:SS') AS CreatedDate,
                     (SELECT COUNT(1) FROM ParkingPermits p WHERE p.ZoneID = z.ZoneID AND p.Status = 'ACTIVE') AS CurrentOccupied,
                     (SELECT COUNT(1) FROM ParkingPermits p WHERE p.ZoneID = z.ZoneID) AS PermitCount,
                     (SELECT COUNT(1) FROM ParkingEmployeeApplications a WHERE a.PreferredZoneID = z.ZoneID AND a.ReviewStatus = 'PENDING') AS PendingAppCount,
@@ -103,7 +103,7 @@ namespace HospitalParking.Services
                     z.TotalCapacity,
                     z.WarningThresholdPct,
                     z.IsActive,
-                    CONVERT(VARCHAR(19), z.CreatedDate, 120) AS CreatedDate,
+                    TO_CHAR(z.CreatedDate, 'YYYY-MM-DD HH24:MI:SS') AS CreatedDate,
                     (SELECT COUNT(1) FROM ParkingPermits p WHERE p.ZoneID = z.ZoneID AND p.Status = 'ACTIVE') AS CurrentOccupied,
                     (SELECT COUNT(1) FROM ParkingPermits p WHERE p.ZoneID = z.ZoneID) AS PermitCount,
                     (SELECT COUNT(1) FROM ParkingEmployeeApplications a WHERE a.PreferredZoneID = z.ZoneID AND a.ReviewStatus = 'PENDING') AS PendingAppCount,
@@ -111,7 +111,7 @@ namespace HospitalParking.Services
                 FROM ParkingZones z
                 WHERE z.ZoneID = @ZoneID";
 
-            var dt = DbHelper.ExecuteDataTable(sql, new SqlParameter("@ZoneID", zoneId));
+            var dt = DbHelper.ExecuteDataTable(sql, new NpgsqlParameter("@ZoneID", zoneId));
             if (dt.Rows.Count == 0)
             {
                 return null;
@@ -187,7 +187,7 @@ namespace HospitalParking.Services
             if (dto.ZoneID <= 0)
             {
                 string checkSql = "SELECT COUNT(1) FROM ParkingZones WHERE UPPER(ZoneCode) = @ZoneCode";
-                int exists = Convert.ToInt32(DbHelper.ExecuteScalar(checkSql, new SqlParameter("@ZoneCode", dto.ZoneCode)));
+                int exists = Convert.ToInt32(DbHelper.ExecuteScalar(checkSql, new NpgsqlParameter("@ZoneCode", dto.ZoneCode)));
                 if (exists > 0)
                 {
                     return OperationResult.Fail(string.Format("場域代碼【{0}】已存在，請使用其他代碼！", dto.ZoneCode));
@@ -195,15 +195,15 @@ namespace HospitalParking.Services
 
                 string insertSql = @"
                     INSERT INTO ParkingZones (ZoneCode, ZoneName, TotalCapacity, WarningThresholdPct, IsActive, CreatedDate)
-                    VALUES (@ZoneCode, @ZoneName, @TotalCapacity, @WarningThresholdPct, @IsActive, GETDATE());
-                    SELECT SCOPE_IDENTITY();";
+                    VALUES (@ZoneCode, @ZoneName, @TotalCapacity, @WarningThresholdPct, @IsActive, CURRENT_TIMESTAMP)
+                    RETURNING ZoneID;";
 
                 var newIdObj = DbHelper.ExecuteScalar(insertSql,
-                    new SqlParameter("@ZoneCode", dto.ZoneCode),
-                    new SqlParameter("@ZoneName", dto.ZoneName),
-                    new SqlParameter("@TotalCapacity", dto.TotalCapacity),
-                    new SqlParameter("@WarningThresholdPct", dto.WarningThresholdPct),
-                    new SqlParameter("@IsActive", dto.IsActive)
+                    new NpgsqlParameter("@ZoneCode", dto.ZoneCode),
+                    new NpgsqlParameter("@ZoneName", dto.ZoneName),
+                    new NpgsqlParameter("@TotalCapacity", dto.TotalCapacity),
+                    new NpgsqlParameter("@WarningThresholdPct", dto.WarningThresholdPct),
+                    new NpgsqlParameter("@IsActive", dto.IsActive)
                 );
 
                 int newId = Convert.ToInt32(newIdObj);
@@ -214,8 +214,8 @@ namespace HospitalParking.Services
             {
                 string checkSql = "SELECT COUNT(1) FROM ParkingZones WHERE UPPER(ZoneCode) = @ZoneCode AND ZoneID <> @ZoneID";
                 int exists = Convert.ToInt32(DbHelper.ExecuteScalar(checkSql,
-                    new SqlParameter("@ZoneCode", dto.ZoneCode),
-                    new SqlParameter("@ZoneID", dto.ZoneID)
+                    new NpgsqlParameter("@ZoneCode", dto.ZoneCode),
+                    new NpgsqlParameter("@ZoneID", dto.ZoneID)
                 ));
                 if (exists > 0)
                 {
@@ -232,12 +232,12 @@ namespace HospitalParking.Services
                     WHERE ZoneID = @ZoneID";
 
                 int affected = DbHelper.ExecuteNonQuery(updateSql,
-                    new SqlParameter("@ZoneCode", dto.ZoneCode),
-                    new SqlParameter("@ZoneName", dto.ZoneName),
-                    new SqlParameter("@TotalCapacity", dto.TotalCapacity),
-                    new SqlParameter("@WarningThresholdPct", dto.WarningThresholdPct),
-                    new SqlParameter("@IsActive", dto.IsActive),
-                    new SqlParameter("@ZoneID", dto.ZoneID)
+                    new NpgsqlParameter("@ZoneCode", dto.ZoneCode),
+                    new NpgsqlParameter("@ZoneName", dto.ZoneName),
+                    new NpgsqlParameter("@TotalCapacity", dto.TotalCapacity),
+                    new NpgsqlParameter("@WarningThresholdPct", dto.WarningThresholdPct),
+                    new NpgsqlParameter("@IsActive", dto.IsActive),
+                    new NpgsqlParameter("@ZoneID", dto.ZoneID)
                 );
 
                 if (affected > 0)
@@ -255,8 +255,8 @@ namespace HospitalParking.Services
         {
             string sql = "UPDATE ParkingZones SET IsActive = @IsActive WHERE ZoneID = @ZoneID";
             int affected = DbHelper.ExecuteNonQuery(sql,
-                new SqlParameter("@IsActive", targetStatus),
-                new SqlParameter("@ZoneID", zoneId)
+                new NpgsqlParameter("@IsActive", targetStatus),
+                new NpgsqlParameter("@ZoneID", zoneId)
             );
 
             if (affected > 0)
@@ -273,15 +273,15 @@ namespace HospitalParking.Services
         {
             // 1. 檢查通行證關聯
             string sqlPermits = "SELECT COUNT(1) FROM ParkingPermits WHERE ZoneID = @ZoneID";
-            int permitCount = Convert.ToInt32(DbHelper.ExecuteScalar(sqlPermits, new SqlParameter("@ZoneID", zoneId)));
+            int permitCount = Convert.ToInt32(DbHelper.ExecuteScalar(sqlPermits, new NpgsqlParameter("@ZoneID", zoneId)));
 
             // 2. 檢查申請單關聯
             string sqlApps = "SELECT COUNT(1) FROM ParkingEmployeeApplications WHERE PreferredZoneID = @ZoneID";
-            int appCount = Convert.ToInt32(DbHelper.ExecuteScalar(sqlApps, new SqlParameter("@ZoneID", zoneId)));
+            int appCount = Convert.ToInt32(DbHelper.ExecuteScalar(sqlApps, new NpgsqlParameter("@ZoneID", zoneId)));
 
             // 3. 檢查巡檢紀錄關聯
             string sqlLogs = "SELECT COUNT(1) FROM ParkingInspectionLogs WHERE ZoneID = @ZoneID";
-            int logCount = Convert.ToInt32(DbHelper.ExecuteScalar(sqlLogs, new SqlParameter("@ZoneID", zoneId)));
+            int logCount = Convert.ToInt32(DbHelper.ExecuteScalar(sqlLogs, new NpgsqlParameter("@ZoneID", zoneId)));
 
             if (permitCount > 0 || appCount > 0 || logCount > 0)
             {
@@ -292,7 +292,7 @@ namespace HospitalParking.Services
 
             // 4. 無任何關聯則允許刪除
             string deleteSql = "DELETE FROM ParkingZones WHERE ZoneID = @ZoneID";
-            int affected = DbHelper.ExecuteNonQuery(deleteSql, new SqlParameter("@ZoneID", zoneId));
+            int affected = DbHelper.ExecuteNonQuery(deleteSql, new NpgsqlParameter("@ZoneID", zoneId));
 
             if (affected > 0)
             {
@@ -311,7 +311,7 @@ namespace HospitalParking.Services
                 SELECT z.ZoneID, z.ZoneCode, z.ZoneName, z.TotalCapacity, z.WarningThresholdPct,
                        (SELECT COUNT(1) FROM ParkingPermits p WHERE p.ZoneID = z.ZoneID AND p.Status = 'ACTIVE') AS CurrentOccupied
                 FROM ParkingZones z
-                WHERE z.IsActive = 1
+                WHERE z.IsActive = TRUE
                 ORDER BY z.ZoneCode";
 
             var dt = DbHelper.ExecuteDataTable(sql);

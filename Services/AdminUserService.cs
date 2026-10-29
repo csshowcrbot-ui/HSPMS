@@ -1,14 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Data.SqlClient;
+using Npgsql;
 using HospitalParking.Common;
 using HospitalParking.DTOs;
 
 namespace HospitalParking.Services
 {
     /// <summary>
-    /// 管理者與現場巡檢人員維護服務 (Admin User Management Service)
+    /// 管理者與現場巡檢人員維護服務 (Admin User Management Service - PostgreSQL)
     /// </summary>
     public class AdminUserService
     {
@@ -29,7 +29,7 @@ namespace HospitalParking.Services
             string kpiSql = @"
                 SELECT 
                     COUNT(1) AS TotalUsers,
-                    SUM(CASE WHEN IsActive = 1 THEN 1 ELSE 0 END) AS ActiveUsers,
+                    SUM(CASE WHEN IsActive = TRUE THEN 1 ELSE 0 END) AS ActiveUsers,
                     SUM(CASE WHEN Role IN ('SUPER_ADMIN', 'ADMIN') THEN 1 ELSE 0 END) AS AdminCount,
                     SUM(CASE WHEN Role = 'SECURITY' THEN 1 ELSE 0 END) AS SecurityCount
                 FROM ParkingSystemAdmins";
@@ -55,25 +55,25 @@ namespace HospitalParking.Services
                     DeptName,
                     ContactPhone,
                     Email,
-                    CONVERT(VARCHAR(19), LastLoginTime, 120) AS LastLoginTime,
+                    TO_CHAR(LastLoginTime, 'YYYY-MM-DD HH24:MI:SS') AS LastLoginTime,
                     IsActive,
-                    CONVERT(VARCHAR(19), CreatedDate, 120) AS CreatedDate,
+                    TO_CHAR(CreatedDate, 'YYYY-MM-DD HH24:MI:SS') AS CreatedDate,
                     Remarks
                 FROM ParkingSystemAdmins
                 WHERE 1=1 ";
 
-            var pars = new List<SqlParameter>();
+            var pars = new List<NpgsqlParameter>();
 
             if (!string.IsNullOrWhiteSpace(keyword))
             {
                 sql += @" AND (
-                    Username LIKE @Kw OR 
-                    DisplayName LIKE @Kw OR 
-                    DeptName LIKE @Kw OR 
-                    ContactPhone LIKE @Kw OR 
-                    RoleName LIKE @Kw
+                    Username ILIKE @Kw OR 
+                    DisplayName ILIKE @Kw OR 
+                    DeptName ILIKE @Kw OR 
+                    ContactPhone ILIKE @Kw OR 
+                    RoleName ILIKE @Kw
                 )";
-                pars.Add(new SqlParameter("@Kw", "%" + keyword.Trim() + "%"));
+                pars.Add(new NpgsqlParameter("@Kw", "%" + keyword.Trim() + "%"));
             }
 
             if (!string.IsNullOrWhiteSpace(roleFilter) && roleFilter != "ALL")
@@ -85,7 +85,7 @@ namespace HospitalParking.Services
                 else
                 {
                     sql += " AND Role = @Role ";
-                    pars.Add(new SqlParameter("@Role", roleFilter.Trim()));
+                    pars.Add(new NpgsqlParameter("@Role", roleFilter.Trim()));
                 }
             }
 
@@ -93,11 +93,11 @@ namespace HospitalParking.Services
             {
                 if (statusFilter == "ACTIVE")
                 {
-                    sql += " AND IsActive = 1 ";
+                    sql += " AND IsActive = TRUE ";
                 }
                 else if (statusFilter == "INACTIVE")
                 {
-                    sql += " AND IsActive = 0 ";
+                    sql += " AND IsActive = FALSE ";
                 }
             }
 
@@ -141,14 +141,14 @@ namespace HospitalParking.Services
                     DeptName,
                     ContactPhone,
                     Email,
-                    CONVERT(VARCHAR(19), LastLoginTime, 120) AS LastLoginTime,
+                    TO_CHAR(LastLoginTime, 'YYYY-MM-DD HH24:MI:SS') AS LastLoginTime,
                     IsActive,
-                    CONVERT(VARCHAR(19), CreatedDate, 120) AS CreatedDate,
+                    TO_CHAR(CreatedDate, 'YYYY-MM-DD HH24:MI:SS') AS CreatedDate,
                     Remarks
                 FROM ParkingSystemAdmins
                 WHERE AdminID = @AdminID";
 
-            var dt = DbHelper.ExecuteDataTable(sql, new SqlParameter("@AdminID", adminId));
+            var dt = DbHelper.ExecuteDataTable(sql, new NpgsqlParameter("@AdminID", adminId));
             if (dt.Rows.Count == 0) return null;
 
             var r = dt.Rows[0];
@@ -200,8 +200,8 @@ namespace HospitalParking.Services
             // 檢查帳號唯一性防呆
             string chkSql = "SELECT COUNT(1) FROM ParkingSystemAdmins WHERE Username = @Username AND AdminID <> @AdminID";
             int count = Convert.ToInt32(DbHelper.ExecuteScalar(chkSql,
-                new SqlParameter("@Username", username),
-                new SqlParameter("@AdminID", dto.AdminID)));
+                new NpgsqlParameter("@Username", username),
+                new NpgsqlParameter("@AdminID", dto.AdminID)));
 
             if (count > 0)
             {
@@ -222,20 +222,20 @@ namespace HospitalParking.Services
                         ContactPhone, Email, IsActive, CreatedDate, Remarks
                     ) VALUES (
                         @Username, @Password, @DisplayName, @Role, @RoleName, @DeptName,
-                        @ContactPhone, @Email, @IsActive, GETDATE(), @Remarks
+                        @ContactPhone, @Email, @IsActive, CURRENT_TIMESTAMP, @Remarks
                     )";
 
                 DbHelper.ExecuteNonQuery(insertSql,
-                    new SqlParameter("@Username", username),
-                    new SqlParameter("@Password", pwd),
-                    new SqlParameter("@DisplayName", displayName),
-                    new SqlParameter("@Role", role),
-                    new SqlParameter("@RoleName", roleName),
-                    new SqlParameter("@DeptName", deptName),
-                    new SqlParameter("@ContactPhone", (object)phone ?? DBNull.Value),
-                    new SqlParameter("@Email", (object)email ?? DBNull.Value),
-                    new SqlParameter("@IsActive", dto.IsActive),
-                    new SqlParameter("@Remarks", (object)remarks ?? DBNull.Value));
+                    new NpgsqlParameter("@Username", username),
+                    new NpgsqlParameter("@Password", pwd),
+                    new NpgsqlParameter("@DisplayName", displayName),
+                    new NpgsqlParameter("@Role", role),
+                    new NpgsqlParameter("@RoleName", roleName),
+                    new NpgsqlParameter("@DeptName", deptName),
+                    new NpgsqlParameter("@ContactPhone", (object)phone ?? DBNull.Value),
+                    new NpgsqlParameter("@Email", (object)email ?? DBNull.Value),
+                    new NpgsqlParameter("@IsActive", dto.IsActive),
+                    new NpgsqlParameter("@Remarks", (object)remarks ?? DBNull.Value));
 
                 return OperationResult.Ok(string.Format("已成功新增【{0}】({1}) 權限帳號！", displayName, roleName));
             }
@@ -261,17 +261,17 @@ namespace HospitalParking.Services
                         WHERE AdminID = @AdminID";
 
                     DbHelper.ExecuteNonQuery(updateSql,
-                        new SqlParameter("@Username", username),
-                        new SqlParameter("@Password", pwd),
-                        new SqlParameter("@DisplayName", displayName),
-                        new SqlParameter("@Role", role),
-                        new SqlParameter("@RoleName", roleName),
-                        new SqlParameter("@DeptName", deptName),
-                        new SqlParameter("@ContactPhone", (object)phone ?? DBNull.Value),
-                        new SqlParameter("@Email", (object)email ?? DBNull.Value),
-                        new SqlParameter("@IsActive", dto.IsActive),
-                        new SqlParameter("@Remarks", (object)remarks ?? DBNull.Value),
-                        new SqlParameter("@AdminID", dto.AdminID));
+                        new NpgsqlParameter("@Username", username),
+                        new NpgsqlParameter("@Password", pwd),
+                        new NpgsqlParameter("@DisplayName", displayName),
+                        new NpgsqlParameter("@Role", role),
+                        new NpgsqlParameter("@RoleName", roleName),
+                        new NpgsqlParameter("@DeptName", deptName),
+                        new NpgsqlParameter("@ContactPhone", (object)phone ?? DBNull.Value),
+                        new NpgsqlParameter("@Email", (object)email ?? DBNull.Value),
+                        new NpgsqlParameter("@IsActive", dto.IsActive),
+                        new NpgsqlParameter("@Remarks", (object)remarks ?? DBNull.Value),
+                        new NpgsqlParameter("@AdminID", dto.AdminID));
                 }
                 else
                 {
@@ -289,16 +289,16 @@ namespace HospitalParking.Services
                         WHERE AdminID = @AdminID";
 
                     DbHelper.ExecuteNonQuery(updateSql,
-                        new SqlParameter("@Username", username),
-                        new SqlParameter("@DisplayName", displayName),
-                        new SqlParameter("@Role", role),
-                        new SqlParameter("@RoleName", roleName),
-                        new SqlParameter("@DeptName", deptName),
-                        new SqlParameter("@ContactPhone", (object)phone ?? DBNull.Value),
-                        new SqlParameter("@Email", (object)email ?? DBNull.Value),
-                        new SqlParameter("@IsActive", dto.IsActive),
-                        new SqlParameter("@Remarks", (object)remarks ?? DBNull.Value),
-                        new SqlParameter("@AdminID", dto.AdminID));
+                        new NpgsqlParameter("@Username", username),
+                        new NpgsqlParameter("@DisplayName", displayName),
+                        new NpgsqlParameter("@Role", role),
+                        new NpgsqlParameter("@RoleName", roleName),
+                        new NpgsqlParameter("@DeptName", deptName),
+                        new NpgsqlParameter("@ContactPhone", (object)phone ?? DBNull.Value),
+                        new NpgsqlParameter("@Email", (object)email ?? DBNull.Value),
+                        new NpgsqlParameter("@IsActive", dto.IsActive),
+                        new NpgsqlParameter("@Remarks", (object)remarks ?? DBNull.Value),
+                        new NpgsqlParameter("@AdminID", dto.AdminID));
                 }
 
                 return OperationResult.Ok(string.Format("【{0}】帳號資料已成功更新！", displayName));
@@ -324,8 +324,8 @@ namespace HospitalParking.Services
             if (!targetStatus && user.Role == "SUPER_ADMIN")
             {
                 int superCount = Convert.ToInt32(DbHelper.ExecuteScalar(
-                    "SELECT COUNT(1) FROM ParkingSystemAdmins WHERE Role = 'SUPER_ADMIN' AND IsActive = 1 AND AdminID <> @AdminID",
-                    new SqlParameter("@AdminID", adminId)));
+                    "SELECT COUNT(1) FROM ParkingSystemAdmins WHERE Role = 'SUPER_ADMIN' AND IsActive = TRUE AND AdminID <> @AdminID",
+                    new NpgsqlParameter("@AdminID", adminId)));
                 if (superCount == 0)
                 {
                     return OperationResult.Fail("系統安全限制：全院系統必須至少保留一位啟用中之最高管理員，無法停用該帳號！");
@@ -334,8 +334,8 @@ namespace HospitalParking.Services
 
             string sql = "UPDATE ParkingSystemAdmins SET IsActive = @IsActive WHERE AdminID = @AdminID";
             DbHelper.ExecuteNonQuery(sql,
-                new SqlParameter("@IsActive", targetStatus),
-                new SqlParameter("@AdminID", adminId));
+                new NpgsqlParameter("@IsActive", targetStatus),
+                new NpgsqlParameter("@AdminID", adminId));
 
             return OperationResult.Ok(string.Format("帳號【{0}】已成功設為【{1}】！", user.DisplayName, targetStatus ? "啟用中" : "已停用"));
         }
@@ -352,8 +352,8 @@ namespace HospitalParking.Services
 
             string sql = "UPDATE ParkingSystemAdmins SET Password = @Password WHERE AdminID = @AdminID";
             DbHelper.ExecuteNonQuery(sql,
-                new SqlParameter("@Password", newPassword.Trim()),
-                new SqlParameter("@AdminID", adminId));
+                new NpgsqlParameter("@Password", newPassword.Trim()),
+                new NpgsqlParameter("@AdminID", adminId));
 
             return OperationResult.Ok(string.Format("人員【{0}】之密碼已順利重設！", user.DisplayName));
         }
@@ -378,7 +378,7 @@ namespace HospitalParking.Services
             {
                 int superCount = Convert.ToInt32(DbHelper.ExecuteScalar(
                     "SELECT COUNT(1) FROM ParkingSystemAdmins WHERE Role = 'SUPER_ADMIN' AND AdminID <> @AdminID",
-                    new SqlParameter("@AdminID", adminId)));
+                    new NpgsqlParameter("@AdminID", adminId)));
                 if (superCount == 0)
                 {
                     return OperationResult.Fail("系統安全限制：全院系統必須至少保留一位最高管理員帳號，不可刪除！");
@@ -386,7 +386,7 @@ namespace HospitalParking.Services
             }
 
             string sql = "DELETE FROM ParkingSystemAdmins WHERE AdminID = @AdminID";
-            int rows = DbHelper.ExecuteNonQuery(sql, new SqlParameter("@AdminID", adminId));
+            int rows = DbHelper.ExecuteNonQuery(sql, new NpgsqlParameter("@AdminID", adminId));
 
             if (rows > 0)
             {

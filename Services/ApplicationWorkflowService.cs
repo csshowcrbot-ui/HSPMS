@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Data.SqlClient;
+using Npgsql;
 using HospitalParking.Common;
 using HospitalParking.DTOs;
 
@@ -28,11 +28,12 @@ namespace HospitalParking.Services
 
             // 1. 檢查該車牌是否已被登記有效停車證 (一車一證，不可重複由同一人或第二人申請)
             string chkPermit = @"
-                SELECT TOP 1 p.OwnerName, p.CardNumber, p.PermitNumber, d.DeptName
+                SELECT p.OwnerName, p.CardNumber, p.PermitNumber, d.DeptName
                 FROM ParkingPermits p
                 LEFT JOIN ParkingDepartments d ON p.DeptID = d.DeptID
-                WHERE p.CleanPlate = @CleanPlate AND p.Status = 'ACTIVE'";
-            var dtPermit = DbHelper.ExecuteDataTable(chkPermit, new SqlParameter("@CleanPlate", cleanPlate));
+                WHERE p.CleanPlate = @CleanPlate AND p.Status = 'ACTIVE'
+                LIMIT 1";
+            var dtPermit = DbHelper.ExecuteDataTable(chkPermit, new NpgsqlParameter("@CleanPlate", cleanPlate));
             if (dtPermit.Rows.Count > 0)
             {
                 var row = dtPermit.Rows[0];
@@ -45,11 +46,12 @@ namespace HospitalParking.Services
             // 2. 檢查是否有該車牌之審核中申請單 (PENDING, PROCESSING, WAITLIST, APPROVED)
             // 規則：一人可申請多台車輛，但同一車輛不可讓二人申請 (依車牌唯一防呆)
             string chkPending = @"
-                SELECT TOP 1 ApplicationNo, ApplicantName, EmpNo, ReviewStatus 
+                SELECT ApplicationNo, ApplicantName, EmpNo, ReviewStatus 
                 FROM ParkingEmployeeApplications 
                 WHERE REPLACE(REPLACE(LicensePlate, '-', ''), ' ', '') = @CleanPlate 
-                  AND ReviewStatus IN ('PENDING', 'PROCESSING', 'WAITLIST', 'APPROVED')";
-            var dtPending = DbHelper.ExecuteDataTable(chkPending, new SqlParameter("@CleanPlate", cleanPlate));
+                  AND ReviewStatus IN ('PENDING', 'PROCESSING', 'WAITLIST', 'APPROVED')
+                LIMIT 1";
+            var dtPending = DbHelper.ExecuteDataTable(chkPending, new NpgsqlParameter("@CleanPlate", cleanPlate));
             if (dtPending.Rows.Count > 0)
             {
                 var row = dtPending.Rows[0];
@@ -69,8 +71,8 @@ namespace HospitalParking.Services
 
             // 產生申請單號 APP-YYYYMMDD-XXX
             string todayStr = DateTime.Now.ToString("yyyyMMdd");
-            string countSql = "SELECT COUNT(1) + 1 FROM ParkingEmployeeApplications WHERE CONVERT(VARCHAR(8), ApplyDate, 112) = @Today";
-            int dailySeq = Convert.ToInt32(DbHelper.ExecuteScalar(countSql, new SqlParameter("@Today", todayStr)));
+            string countSql = "SELECT COUNT(1) + 1 FROM ParkingEmployeeApplications WHERE TO_CHAR(ApplyDate, 'YYYYMMDD') = @Today";
+            int dailySeq = Convert.ToInt32(DbHelper.ExecuteScalar(countSql, new NpgsqlParameter("@Today", todayStr)));
             string appNo = string.Format("APP-{0}-{1:D3}", todayStr, dailySeq);
 
             string insertSql = @"
@@ -79,19 +81,19 @@ namespace HospitalParking.Services
                     LicensePlate, VehicleBrand, VehicleColor, PreferredZoneID, ApplyDate, ReviewStatus
                 ) VALUES (
                     @ApplicationNo, @EmpNo, @ApplicantName, @DeptID, @ContactPhone,
-                    @LicensePlate, @VehicleBrand, @VehicleColor, @PreferredZoneID, GETDATE(), 'PENDING'
+                    @LicensePlate, @VehicleBrand, @VehicleColor, @PreferredZoneID, CURRENT_TIMESTAMP, 'PENDING'
                 )";
 
             DbHelper.ExecuteNonQuery(insertSql,
-                new SqlParameter("@ApplicationNo", appNo),
-                new SqlParameter("@EmpNo", dto.EmpNo),
-                new SqlParameter("@ApplicantName", dto.ApplicantName),
-                new SqlParameter("@DeptID", dto.DeptID),
-                new SqlParameter("@ContactPhone", (object)dto.ContactPhone ?? DBNull.Value),
-                new SqlParameter("@LicensePlate", dto.LicensePlate),
-                new SqlParameter("@VehicleBrand", dto.VehicleBrand ?? ""),
-                new SqlParameter("@VehicleColor", dto.VehicleColor ?? ""),
-                new SqlParameter("@PreferredZoneID", dto.PreferredZoneID)
+                new NpgsqlParameter("@ApplicationNo", appNo),
+                new NpgsqlParameter("@EmpNo", dto.EmpNo),
+                new NpgsqlParameter("@ApplicantName", dto.ApplicantName),
+                new NpgsqlParameter("@DeptID", dto.DeptID),
+                new NpgsqlParameter("@ContactPhone", (object)dto.ContactPhone ?? DBNull.Value),
+                new NpgsqlParameter("@LicensePlate", dto.LicensePlate),
+                new NpgsqlParameter("@VehicleBrand", dto.VehicleBrand ?? ""),
+                new NpgsqlParameter("@VehicleColor", dto.VehicleColor ?? ""),
+                new NpgsqlParameter("@PreferredZoneID", dto.PreferredZoneID)
             );
 
             return OperationResult.Ok("申請單已順利送出！請妥善保存申請單號以利追蹤進度。", appNo);
@@ -105,9 +107,9 @@ namespace HospitalParking.Services
                        a.ContactPhone, a.LicensePlate, a.VehicleBrand, a.VehicleColor,
                        a.PreferredZoneID, z.ZoneName AS PreferredZoneName,
                        a.AssignedZoneID, az.ZoneName AS AssignedZoneName,
-                       CONVERT(VARCHAR(16), a.ApplyDate, 120) AS ApplyDate,
+                       TO_CHAR(a.ApplyDate, 'YYYY-MM-DD HH24:MI') AS ApplyDate,
                        a.ReviewStatus, a.ReviewerName,
-                       CONVERT(VARCHAR(16), a.ReviewDate, 120) AS ReviewDate,
+                       TO_CHAR(a.ReviewDate, 'YYYY-MM-DD HH24:MI') AS ReviewDate,
                        a.RejectReason, a.ReviewRemarks
                 FROM ParkingEmployeeApplications a
                 INNER JOIN ParkingDepartments d ON a.DeptID = d.DeptID
@@ -115,7 +117,7 @@ namespace HospitalParking.Services
                 LEFT JOIN ParkingZones az ON a.AssignedZoneID = az.ZoneID
                 WHERE 1=1 ";
 
-            var pars = new List<SqlParameter>();
+            var pars = new List<NpgsqlParameter>();
 
             if (!string.IsNullOrWhiteSpace(reviewStatus))
             {
@@ -127,14 +129,14 @@ namespace HospitalParking.Services
                 else
                 {
                     sql += " AND a.ReviewStatus = @Status ";
-                    pars.Add(new SqlParameter("@Status", reviewStatus));
+                    pars.Add(new NpgsqlParameter("@Status", reviewStatus));
                 }
             }
 
             if (!string.IsNullOrWhiteSpace(keyword))
             {
-                sql += " AND (a.EmpNo LIKE @Kw OR a.ApplicantName LIKE @Kw OR a.LicensePlate LIKE @Kw OR a.ApplicationNo LIKE @Kw) ";
-                pars.Add(new SqlParameter("@Kw", "%" + keyword.Trim() + "%"));
+                sql += " AND (a.EmpNo ILIKE @Kw OR a.ApplicantName ILIKE @Kw OR a.LicensePlate ILIKE @Kw OR a.ApplicationNo ILIKE @Kw) ";
+                pars.Add(new NpgsqlParameter("@Kw", "%" + keyword.Trim() + "%"));
             }
 
             sql += " ORDER BY a.ApplicationID DESC";
@@ -185,9 +187,9 @@ namespace HospitalParking.Services
                        a.ContactPhone, a.LicensePlate, a.VehicleBrand, a.VehicleColor,
                        a.PreferredZoneID, z.ZoneName AS PreferredZoneName,
                        a.AssignedZoneID, az.ZoneName AS AssignedZoneName,
-                       CONVERT(VARCHAR(16), a.ApplyDate, 120) AS ApplyDate,
+                       TO_CHAR(a.ApplyDate, 'YYYY-MM-DD HH24:MI') AS ApplyDate,
                        a.ReviewStatus, a.ReviewerName,
-                       CONVERT(VARCHAR(16), a.ReviewDate, 120) AS ReviewDate,
+                       TO_CHAR(a.ReviewDate, 'YYYY-MM-DD HH24:MI') AS ReviewDate,
                        a.RejectReason, a.ReviewRemarks
                 FROM ParkingEmployeeApplications a
                 INNER JOIN ParkingDepartments d ON a.DeptID = d.DeptID
@@ -196,7 +198,7 @@ namespace HospitalParking.Services
                 WHERE a.EmpNo = @Query OR a.ApplicationNo = @Query OR a.LicensePlate = @Query
                 ORDER BY a.ApplicationID DESC";
 
-            var dt = DbHelper.ExecuteDataTable(sql, new SqlParameter("@Query", query));
+            var dt = DbHelper.ExecuteDataTable(sql, new NpgsqlParameter("@Query", query));
             var list = new List<ApplicationDto>();
 
             foreach (DataRow dr in dt.Rows)
@@ -237,7 +239,7 @@ namespace HospitalParking.Services
             if (string.IsNullOrWhiteSpace(reviewerName)) reviewerName = "總務處 審核專員";
 
             string fetchSql = "SELECT ReviewStatus FROM ParkingEmployeeApplications WHERE ApplicationID = @AppID";
-            object currentStatusObj = DbHelper.ExecuteScalar(fetchSql, new SqlParameter("@AppID", applicationId));
+            object currentStatusObj = DbHelper.ExecuteScalar(fetchSql, new NpgsqlParameter("@AppID", applicationId));
             if (currentStatusObj == null) return OperationResult.Fail("查無此申請單！");
             string currentStatus = currentStatusObj.ToString();
 
@@ -251,15 +253,15 @@ namespace HospitalParking.Services
                     ReviewStatus = 'PROCESSING',
                     AssignedZoneID = CASE WHEN @AssignedZoneID > 0 THEN @AssignedZoneID ELSE AssignedZoneID END,
                     ReviewerName = @Reviewer,
-                    ReviewDate = GETDATE(),
+                    ReviewDate = CURRENT_TIMESTAMP,
                     ReviewRemarks = @Remarks
                 WHERE ApplicationID = @AppID";
 
             int rows = DbHelper.ExecuteNonQuery(updateSql,
-                new SqlParameter("@Reviewer", reviewerName),
-                new SqlParameter("@AssignedZoneID", (object)(assignedZoneId.HasValue ? assignedZoneId.Value : (object)DBNull.Value)),
-                new SqlParameter("@Remarks", (object)(remarks ?? "已受理收案，資料查驗審核中") ?? DBNull.Value),
-                new SqlParameter("@AppID", applicationId));
+                new NpgsqlParameter("@Reviewer", reviewerName),
+                new NpgsqlParameter("@AssignedZoneID", (object)(assignedZoneId.HasValue ? assignedZoneId.Value : (object)DBNull.Value)),
+                new NpgsqlParameter("@Remarks", (object)(remarks ?? "已受理收案，資料查驗審核中") ?? DBNull.Value),
+                new NpgsqlParameter("@AppID", applicationId));
 
             if (rows > 0) return OperationResult.Ok("已完成【收案】！案件進入審查中程序。");
             return OperationResult.Fail("收案操作失敗！");
@@ -278,7 +280,7 @@ namespace HospitalParking.Services
             if (string.IsNullOrWhiteSpace(reviewerName)) reviewerName = "總務處 審核專員";
 
             string fetchSql = "SELECT ReviewStatus FROM ParkingEmployeeApplications WHERE ApplicationID = @AppID";
-            object currentStatusObj = DbHelper.ExecuteScalar(fetchSql, new SqlParameter("@AppID", applicationId));
+            object currentStatusObj = DbHelper.ExecuteScalar(fetchSql, new NpgsqlParameter("@AppID", applicationId));
             if (currentStatusObj == null) return OperationResult.Fail("查無此申請單！");
             string currentStatus = currentStatusObj.ToString();
 
@@ -292,15 +294,15 @@ namespace HospitalParking.Services
                     ReviewStatus = 'WAITLIST',
                     AssignedZoneID = CASE WHEN @AssignedZoneID > 0 THEN @AssignedZoneID ELSE AssignedZoneID END,
                     ReviewerName = @Reviewer,
-                    ReviewDate = GETDATE(),
+                    ReviewDate = CURRENT_TIMESTAMP,
                     ReviewRemarks = @Remarks
                 WHERE ApplicationID = @AppID";
 
             int rows = DbHelper.ExecuteNonQuery(updateSql,
-                new SqlParameter("@Reviewer", reviewerName),
-                new SqlParameter("@AssignedZoneID", (object)(assignedZoneId.HasValue ? assignedZoneId.Value : (object)DBNull.Value)),
-                new SqlParameter("@Remarks", (object)(remarks ?? "目前配額額滿，已列入排序輪候名單") ?? DBNull.Value),
-                new SqlParameter("@AppID", applicationId));
+                new NpgsqlParameter("@Reviewer", reviewerName),
+                new NpgsqlParameter("@AssignedZoneID", (object)(assignedZoneId.HasValue ? assignedZoneId.Value : (object)DBNull.Value)),
+                new NpgsqlParameter("@Remarks", (object)(remarks ?? "目前配額額滿，已列入排序輪候名單") ?? DBNull.Value),
+                new NpgsqlParameter("@AppID", applicationId));
 
             if (rows > 0) return OperationResult.Ok("已將案件設為【待排序】！等待車位配額釋出或排序評比。");
             return OperationResult.Fail("設定待排序操作失敗！");
@@ -319,7 +321,7 @@ namespace HospitalParking.Services
             if (string.IsNullOrWhiteSpace(reviewerName)) reviewerName = "總務處 審核專員";
 
             string fetchSql = "SELECT ReviewStatus FROM ParkingEmployeeApplications WHERE ApplicationID = @AppID";
-            object currentStatusObj = DbHelper.ExecuteScalar(fetchSql, new SqlParameter("@AppID", applicationId));
+            object currentStatusObj = DbHelper.ExecuteScalar(fetchSql, new NpgsqlParameter("@AppID", applicationId));
             if (currentStatusObj == null) return OperationResult.Fail("查無此申請單！");
             string currentStatus = currentStatusObj.ToString();
 
@@ -333,15 +335,15 @@ namespace HospitalParking.Services
                     ReviewStatus = 'APPROVED',
                     AssignedZoneID = CASE WHEN @AssignedZoneID > 0 THEN @AssignedZoneID ELSE AssignedZoneID END,
                     ReviewerName = @Reviewer,
-                    ReviewDate = GETDATE(),
+                    ReviewDate = CURRENT_TIMESTAMP,
                     ReviewRemarks = @Remarks
                 WHERE ApplicationID = @AppID";
 
             int rows = DbHelper.ExecuteNonQuery(updateSql,
-                new SqlParameter("@Reviewer", reviewerName),
-                new SqlParameter("@AssignedZoneID", (object)(assignedZoneId.HasValue ? assignedZoneId.Value : (object)DBNull.Value)),
-                new SqlParameter("@Remarks", (object)(remarks ?? "審核通過，請攜帶識別證至總務處領取感應卡與遙控器") ?? DBNull.Value),
-                new SqlParameter("@AppID", applicationId));
+                new NpgsqlParameter("@Reviewer", reviewerName),
+                new NpgsqlParameter("@AssignedZoneID", (object)(assignedZoneId.HasValue ? assignedZoneId.Value : (object)DBNull.Value)),
+                new NpgsqlParameter("@Remarks", (object)(remarks ?? "審核通過，請攜帶識別證至總務處領取感應卡與遙控器") ?? DBNull.Value),
+                new NpgsqlParameter("@AppID", applicationId));
 
             if (rows > 0) return OperationResult.Ok("審核通過！案件已標記為【待領證】，請通知同仁攜證前來總務處領取通行證。");
             return OperationResult.Fail("標記待領證操作失敗！");
@@ -360,7 +362,7 @@ namespace HospitalParking.Services
             if (string.IsNullOrWhiteSpace(reviewerName)) reviewerName = "總務處 審核專員";
 
             string fetchSql = "SELECT * FROM ParkingEmployeeApplications WHERE ApplicationID = @AppID";
-            var dt = DbHelper.ExecuteDataTable(fetchSql, new SqlParameter("@AppID", applicationId));
+            var dt = DbHelper.ExecuteDataTable(fetchSql, new NpgsqlParameter("@AppID", applicationId));
             if (dt.Rows.Count == 0) return OperationResult.Fail("查無此申請單！");
 
             var row = dt.Rows[0];
@@ -391,7 +393,7 @@ namespace HospitalParking.Services
 
             // 檢查車牌是否已在 Permits 主檔有 ACTIVE 記錄
             string chkSql = "SELECT COUNT(1) FROM ParkingPermits WHERE CleanPlate = REPLACE(REPLACE(@Plate, '-', ''), ' ', '') AND Status = 'ACTIVE'";
-            int dup = Convert.ToInt32(DbHelper.ExecuteScalar(chkSql, new SqlParameter("@Plate", plate)));
+            int dup = Convert.ToInt32(DbHelper.ExecuteScalar(chkSql, new NpgsqlParameter("@Plate", plate)));
             if (dup > 0)
             {
                 return OperationResult.Fail("該車牌目前已有院區有效通行證，無法重複發證！");
@@ -400,7 +402,7 @@ namespace HospitalParking.Services
             // 產生通行證號 PRK-YYYYMM-XXX
             string prefix = "PRK-" + DateTime.Now.ToString("yyyyMM");
             string countPermitSql = "SELECT COUNT(1) + 1 FROM ParkingPermits WHERE PermitNumber LIKE @Prefix";
-            int seq = Convert.ToInt32(DbHelper.ExecuteScalar(countPermitSql, new SqlParameter("@Prefix", prefix + "%")));
+            int seq = Convert.ToInt32(DbHelper.ExecuteScalar(countPermitSql, new NpgsqlParameter("@Prefix", prefix + "%")));
             string permitNo = string.Format("{0}-{1:D3}", prefix, seq);
 
             DateTime start = DateTime.Today;
@@ -420,20 +422,20 @@ namespace HospitalParking.Services
                 )";
 
             DbHelper.ExecuteNonQuery(insertPermitSql,
-                new SqlParameter("@PermitNumber", permitNo),
-                new SqlParameter("@DeptID", deptId),
-                new SqlParameter("@CardNumber", empNo),
-                new SqlParameter("@OwnerName", owner),
-                new SqlParameter("@SensorTagNumber", finalTag),
-                new SqlParameter("@RemoteControllerNo", finalRemote),
-                new SqlParameter("@VehicleColor", color),
-                new SqlParameter("@LicensePlate", plate),
-                new SqlParameter("@VehicleBrand", brand),
-                new SqlParameter("@ZoneID", zoneId),
-                new SqlParameter("@RegisterDate", start),
-                new SqlParameter("@StartDate", start),
-                new SqlParameter("@ExpireDate", expire),
-                new SqlParameter("@Remarks", (object)(remarks ?? "員工線上申請審核通過發證") ?? DBNull.Value)
+                new NpgsqlParameter("@PermitNumber", permitNo),
+                new NpgsqlParameter("@DeptID", deptId),
+                new NpgsqlParameter("@CardNumber", empNo),
+                new NpgsqlParameter("@OwnerName", owner),
+                new NpgsqlParameter("@SensorTagNumber", finalTag),
+                new NpgsqlParameter("@RemoteControllerNo", finalRemote),
+                new NpgsqlParameter("@VehicleColor", color),
+                new NpgsqlParameter("@LicensePlate", plate),
+                new NpgsqlParameter("@VehicleBrand", brand),
+                new NpgsqlParameter("@ZoneID", zoneId),
+                new NpgsqlParameter("@RegisterDate", start),
+                new NpgsqlParameter("@StartDate", start),
+                new NpgsqlParameter("@ExpireDate", expire),
+                new NpgsqlParameter("@Remarks", (object)(remarks ?? "員工線上申請審核通過發證") ?? DBNull.Value)
             );
 
             // 更新申請單狀態為 COMPLETED 並寫入最終實際核定停放區域 AssignedZoneID
@@ -442,15 +444,15 @@ namespace HospitalParking.Services
                     ReviewStatus = 'COMPLETED',
                     AssignedZoneID = @ZoneID,
                     ReviewerName = @Reviewer,
-                    ReviewDate = GETDATE(),
+                    ReviewDate = CURRENT_TIMESTAMP,
                     ReviewRemarks = @Remarks
                 WHERE ApplicationID = @AppID";
 
             DbHelper.ExecuteNonQuery(updateAppSql,
-                new SqlParameter("@ZoneID", zoneId),
-                new SqlParameter("@Reviewer", reviewerName),
-                new SqlParameter("@Remarks", (object)(remarks ?? string.Format("已核發通行證【{0}】，卡號：{1}", permitNo, finalTag)) ?? DBNull.Value),
-                new SqlParameter("@AppID", applicationId));
+                new NpgsqlParameter("@ZoneID", zoneId),
+                new NpgsqlParameter("@Reviewer", reviewerName),
+                new NpgsqlParameter("@Remarks", (object)(remarks ?? string.Format("已核發通行證【{0}】，卡號：{1}", permitNo, finalTag)) ?? DBNull.Value),
+                new NpgsqlParameter("@AppID", applicationId));
 
             return OperationResult.Ok(string.Format("發證成功！已建立車籍通行證【{0}】（感應卡：{1}，有效至 {2:yyyy-MM-dd}），申請單已結案啟用。", permitNo, finalTag, expire), permitNo);
         }
@@ -472,13 +474,13 @@ namespace HospitalParking.Services
                 UPDATE ParkingEmployeeApplications SET
                     AssignedZoneID = @ZoneID,
                     ReviewerName = @Reviewer,
-                    ReviewDate = GETDATE()
+                    ReviewDate = CURRENT_TIMESTAMP
                 WHERE ApplicationID = @AppID";
 
             int rows = DbHelper.ExecuteNonQuery(sql,
-                new SqlParameter("@ZoneID", zoneId),
-                new SqlParameter("@Reviewer", reviewerName),
-                new SqlParameter("@AppID", applicationId));
+                new NpgsqlParameter("@ZoneID", zoneId),
+                new NpgsqlParameter("@Reviewer", reviewerName),
+                new NpgsqlParameter("@AppID", applicationId));
 
             if (rows > 0) return OperationResult.Ok("實際安排停放區域已更新成功！");
             return OperationResult.Fail("更新停放區域失敗，查無此案件！");
@@ -500,14 +502,14 @@ namespace HospitalParking.Services
                 UPDATE ParkingEmployeeApplications SET
                     ReviewStatus = 'REJECTED',
                     ReviewerName = @Reviewer,
-                    ReviewDate = GETDATE(),
+                    ReviewDate = CURRENT_TIMESTAMP,
                     RejectReason = @Reason
                 WHERE ApplicationID = @AppID AND ReviewStatus NOT IN ('COMPLETED', 'REJECTED')";
 
             int rows = DbHelper.ExecuteNonQuery(updateSql,
-                new SqlParameter("@Reviewer", reviewerName),
-                new SqlParameter("@Reason", rejectReason.Trim()),
-                new SqlParameter("@AppID", applicationId));
+                new NpgsqlParameter("@Reviewer", reviewerName),
+                new NpgsqlParameter("@Reason", rejectReason.Trim()),
+                new NpgsqlParameter("@AppID", applicationId));
 
             if (rows > 0) return OperationResult.Ok("申請單已駁回！");
             return OperationResult.Fail("駁回失敗，該單可能已結案或不存在。");

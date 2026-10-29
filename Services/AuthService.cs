@@ -1,6 +1,6 @@
 using System;
 using System.Data;
-using System.Data.SqlClient;
+using Npgsql;
 using HospitalParking.Common;
 using HospitalParking.DTOs;
 
@@ -17,7 +17,7 @@ namespace HospitalParking.Services
         }
 
         /// <summary>
-        /// 確保 SystemAdmins 資料表與預設管理員帳號已建立
+        /// 確保 ParkingSystemAdmins 資料表與預設管理員帳號已建立 (PostgreSQL)
         /// </summary>
         public void EnsureAdminTableInitialized()
         {
@@ -30,39 +30,30 @@ namespace HospitalParking.Services
                 try
                 {
                     string checkSql = @"
-                        IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'ParkingSystemAdmins')
-                        BEGIN
-                            CREATE TABLE ParkingSystemAdmins (
-                                AdminID INT IDENTITY(1,1) PRIMARY KEY,
-                                Username NVARCHAR(50) NOT NULL UNIQUE,
-                                Password NVARCHAR(100) NOT NULL,
-                                DisplayName NVARCHAR(50) NOT NULL,
-                                Role NVARCHAR(30) NOT NULL,
-                                RoleName NVARCHAR(50) NOT NULL,
-                                DeptName NVARCHAR(50) NOT NULL,
-                                ContactPhone NVARCHAR(30) NULL,
-                                Email NVARCHAR(100) NULL,
-                                LastLoginTime DATETIME NULL,
-                                IsActive BIT NOT NULL DEFAULT 1,
-                                CreatedDate DATETIME NOT NULL DEFAULT GETDATE(),
-                                Remarks NVARCHAR(200) NULL
-                            );
+                        CREATE TABLE IF NOT EXISTS ParkingSystemAdmins (
+                            AdminID SERIAL PRIMARY KEY,
+                            Username VARCHAR(50) NOT NULL UNIQUE,
+                            Password VARCHAR(100) NOT NULL,
+                            DisplayName VARCHAR(50) NOT NULL,
+                            Role VARCHAR(30) NOT NULL,
+                            RoleName VARCHAR(50) NOT NULL,
+                            DeptName VARCHAR(50) NOT NULL,
+                            ContactPhone VARCHAR(30) NULL,
+                            Email VARCHAR(100) NULL,
+                            LastLoginTime TIMESTAMP NULL,
+                            IsActive BOOLEAN NOT NULL DEFAULT TRUE,
+                            CreatedDate TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            Remarks VARCHAR(200) NULL
+                        );
 
-                            IF OBJECT_ID('dbo.SystemAdmins', 'U') IS NOT NULL
-                            BEGIN
-                                INSERT INTO ParkingSystemAdmins (Username, Password, DisplayName, Role, RoleName, DeptName, LastLoginTime, IsActive, CreatedDate)
-                                SELECT Username, Password, DisplayName, Role, RoleName, DeptName, LastLoginTime, IsActive, CreatedDate
-                                FROM SystemAdmins;
-                            END
-                            ELSE
-                            BEGIN
-                                INSERT INTO ParkingSystemAdmins (Username, Password, DisplayName, Role, RoleName, DeptName, ContactPhone, LastLoginTime)
-                                VALUES ('admin', 'admin123', '陳專員 (總務管理員)', 'SUPER_ADMIN', '總務行政主管', '總務行政處', '分機 3100', GETDATE());
+                        INSERT INTO ParkingSystemAdmins (Username, Password, DisplayName, Role, RoleName, DeptName, ContactPhone, LastLoginTime)
+                        VALUES ('admin', 'admin123', '陳專員 (總務管理員)', 'SUPER_ADMIN', '總務行政主管', '總務行政處', '分機 3100', CURRENT_TIMESTAMP)
+                        ON CONFLICT (Username) DO NOTHING;
 
-                                INSERT INTO ParkingSystemAdmins (Username, Password, DisplayName, Role, RoleName, DeptName, ContactPhone, LastLoginTime)
-                                VALUES ('security01', 'sec123', '李警衛 (現場查核隊)', 'SECURITY', '現場巡檢警衛', '安全警衛課', '分機 1199', GETDATE());
-                            END
-                        END";
+                        INSERT INTO ParkingSystemAdmins (Username, Password, DisplayName, Role, RoleName, DeptName, ContactPhone, LastLoginTime)
+                        VALUES ('security01', 'sec123', '李警衛 (現場查核隊)', 'SECURITY', '現場巡檢警衛', '安全警衛課', '分機 1199', CURRENT_TIMESTAMP)
+                        ON CONFLICT (Username) DO NOTHING;
+                    ";
 
                     DbHelper.ExecuteNonQuery(checkSql);
                     _initialized = true;
@@ -111,7 +102,7 @@ namespace HospitalParking.Services
                 FROM ParkingSystemAdmins
                 WHERE Username = @Username";
 
-            var dt = DbHelper.ExecuteDataTable(sql, new SqlParameter("@Username", u));
+            var dt = DbHelper.ExecuteDataTable(sql, new NpgsqlParameter("@Username", u));
             if (dt.Rows.Count == 0)
             {
                 return OperationResult.Fail("此管理員帳號不存在，請確認後再試！");
@@ -149,8 +140,8 @@ namespace HospitalParking.Services
         {
             try
             {
-                string sql = "UPDATE ParkingSystemAdmins SET LastLoginTime = GETDATE() WHERE Username = @Username";
-                DbHelper.ExecuteNonQuery(sql, new SqlParameter("@Username", username));
+                string sql = "UPDATE ParkingSystemAdmins SET LastLoginTime = CURRENT_TIMESTAMP WHERE Username = @Username";
+                DbHelper.ExecuteNonQuery(sql, new NpgsqlParameter("@Username", username));
             }
             catch
             {
