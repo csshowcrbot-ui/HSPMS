@@ -2,6 +2,7 @@ using System;
 using System.Configuration;
 using System.Data;
 using System.Data.Common;
+using System.IO;
 using Npgsql;
 
 namespace HospitalParking.Common
@@ -11,6 +12,9 @@ namespace HospitalParking.Common
     /// </summary>
     public static class DbHelper
     {
+        private static bool _isInitialized = false;
+        private static readonly object _initLock = new object();
+
         public static string ConnectionString
         {
             get
@@ -74,8 +78,55 @@ namespace HospitalParking.Common
             return raw;
         }
 
+        /// <summary>
+        /// 自動檢查並初始化資料庫 (若關鍵表格不存在，自動執行 init_database_pg.sql)
+        /// </summary>
+        public static void EnsureDatabaseInitialized()
+        {
+            if (_isInitialized) return;
+            lock (_initLock)
+            {
+                if (_isInitialized) return;
+                try
+                {
+                    using (var conn = new NpgsqlConnection(ConnectionString))
+                    {
+                        conn.Open();
+                        // 檢查核心表格 parkingdepartments 是否已存在
+                        using (var chkCmd = new NpgsqlCommand("SELECT to_regclass('public.parkingdepartments');", conn))
+                        {
+                            var result = chkCmd.ExecuteScalar();
+                            if (result == null || result == DBNull.Value)
+                            {
+                                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+                                string sqlPath = Path.Combine(baseDir, "init_database_pg.sql");
+                                if (File.Exists(sqlPath))
+                                {
+                                    string fullSql = File.ReadAllText(sqlPath);
+                                    using (var initCmd = new NpgsqlCommand(fullSql, conn))
+                                    {
+                                        initCmd.CommandTimeout = 120;
+                                        initCmd.ExecuteNonQuery();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                catch (Exception)
+                {
+                    // 若失敗允許重試或由日誌查看
+                }
+                finally
+                {
+                    _isInitialized = true;
+                }
+            }
+        }
+
         public static NpgsqlConnection GetConnection()
         {
+            EnsureDatabaseInitialized();
             var conn = new NpgsqlConnection(ConnectionString);
             if (conn.State != ConnectionState.Open)
             {

@@ -16,6 +16,16 @@ DROP TABLE IF EXISTS Departments CASCADE;
 DROP TABLE IF EXISTS ParkingSystemAdmins CASCADE;
 DROP TABLE IF EXISTS SystemAdmins CASCADE;
 
+-- 建立車牌去符號正規化專用 IMMUTABLE 函數 (PostgreSQL 計算欄位要求函式必須具備 IMMUTABLE 屬性)
+CREATE OR REPLACE FUNCTION fn_clean_plate(plate TEXT) 
+RETURNS VARCHAR(15) 
+LANGUAGE sql 
+IMMUTABLE 
+PARALLEL SAFE 
+AS $$
+    SELECT REPLACE(REPLACE(UPPER(plate), '-', ''), ' ', '')::VARCHAR(15);
+$$;
+
 -- 1. 部門類別字典檔
 CREATE TABLE ParkingDepartments (
     DeptID SERIAL PRIMARY KEY,
@@ -48,7 +58,7 @@ CREATE TABLE ParkingPermits (
     RemoteControllerNo VARCHAR(50) NULL,
     VehicleColor VARCHAR(20) NOT NULL,
     LicensePlate VARCHAR(15) NOT NULL,
-    CleanPlate VARCHAR(15) GENERATED ALWAYS AS (REPLACE(REPLACE(UPPER(LicensePlate), '-', ''), ' ', '')) STORED,
+    CleanPlate VARCHAR(15) GENERATED ALWAYS AS (fn_clean_plate(LicensePlate)) STORED,
     VehicleBrand VARCHAR(30) NOT NULL,
     ZoneID INT NOT NULL REFERENCES ParkingZones(ZoneID),
     RegisterDate DATE NOT NULL DEFAULT CURRENT_DATE,
@@ -170,4 +180,3 @@ INSERT INTO ParkingInspectionLogs (InspectTime, InspectorAccount, ZoneID, PlateS
 INSERT INTO ParkingSystemAdmins (Username, Password, DisplayName, Role, RoleName, DeptName, ContactPhone, LastLoginTime, Remarks) VALUES
 ('admin', 'admin123', '陳專員 (總務管理員)', 'SUPER_ADMIN', '總務行政主管', '總務行政處', '分機 3100', CURRENT_TIMESTAMP, '系統最高管理權限'),
 ('security01', 'sec123', '李警衛 (現場查核隊)', 'SECURITY', '現場巡檢警衛', '安全警衛課', '分機 1199', CURRENT_TIMESTAMP, '行動巡查專用帳號');
-
